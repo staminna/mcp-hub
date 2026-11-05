@@ -3,6 +3,8 @@
 One list of MCP servers (`mcp-hub.json`) synced into every editor's config, plus a
 dashboard for browsing and editing your skills and memories.
 
+![Servers page: each row is a server, each dot an editor it syncs to](docs/screenshots/servers.jpg)
+
 ```bash
 npm install
 cp mcp-hub.example.json mcp-hub.json   # your server list (gitignored)
@@ -12,6 +14,24 @@ npm run dev -- <command>               # or: npm run build && node dist/index.js
 
 Already have servers in an editor? `npm run dev -- import --from claude-code` pulls them in
 and moves any tokens it finds into `.env`.
+
+## Tests
+
+```bash
+npm test                # 301 tests (backend + dashboard)
+npm run test:coverage   # same, with coverage; fails below 95% on any metric
+```
+
+| Statements | Branches | Functions | Lines |
+|---|---|---|---|
+| 100% | 99.1% | 100% | 100% |
+
+Coverage includes the CLI, API server, sync, adapters, health, discovery, deploy and the
+dashboard (`web/`, run in jsdom). Tests never touch your real configs:
+`tests/setup.ts` points `HOME` and the hub folder at a fresh temp folder before any code
+loads, and `tests/isolation.test.ts` fails the run if any path escapes it. SSH, kubectl
+and npm are faked; health checks start real `node` processes and a local HTTP server.
+The HTML report is written to `coverage/`.
 
 ## Commands
 
@@ -40,10 +60,16 @@ For working on the dashboard itself, run `npm run dev -- serve` in one terminal 
 proxied to the hub). It's a Vite + React + TypeScript app in `web/` that shares
 `src/types.ts` with the backend; `npm run typecheck:web` checks it.
 
-Pages: **Servers** (which server goes to which editor, health, on/off), **Changes**
-(what a sync would do, field names only), **Editors** (sync, with a confirm step),
-**Secrets** (set, replace or remove the tokens in `.env` without editing the file),
-**Skills** and **Memories** (read and edit in place), **Import** and **Find servers**.
+### Pages
+
+Screenshots use demo data from `mcp-hub.example.json`.
+
+| | |
+|---|---|
+| **Servers**: which server goes to which editor, health, on/off<br>![Servers](docs/screenshots/servers.jpg) | **Changes**: what a sync would do, field names only<br>![Changes](docs/screenshots/changes.jpg) |
+| **Editors**: each config file, sync with a confirm step<br>![Editors](docs/screenshots/editors.jpg) | **Secrets**: set, replace or remove `.env` tokens, write-only<br>![Secrets](docs/screenshots/secrets.jpg) |
+| **Skills**: read and edit `SKILL.md` files in place<br>![Skills](docs/screenshots/skills.jpg) | **Memories**: read and edit memory files by project<br>![Memories](docs/screenshots/memories.jpg) |
+| **Import**: pull servers in from an editor's config<br>![Import](docs/screenshots/import.jpg) | **Find servers**: popular servers, npm search, running processes<br>![Find servers](docs/screenshots/find-servers.jpg) |
 
 The dashboard listens on `127.0.0.1` only (`--host` to change that, with a warning),
 rejects requests for other host names, and refuses changes coming from other websites.
@@ -77,24 +103,5 @@ rejects requests for other host names, and refuses changes coming from other web
   Secrets are write-only in the dashboard: names and status go out, values never do, and
   the Changes page gets field names only.
 - Skills/memories: only existing `.md` files inside those folders can be edited.
-
-## Tests
-
-```bash
-npm test                # 301 tests (backend + dashboard)
-npm run test:coverage   # same, with coverage; fails below 95% on any metric
-```
-
-| Statements | Branches | Functions | Lines |
-|---|---|---|---|
-| 100% | 99.1% | 100% | 100% |
-
-Coverage includes the CLI, API server, sync, adapters, health, discovery, deploy and the
-dashboard (`web/`, run in jsdom). Tests never touch your real configs:
-`tests/setup.ts` points `HOME` and the hub folder at a fresh temp folder before any code
-loads, and `tests/isolation.test.ts` fails the run if any path escapes it. SSH, kubectl
-and npm are faked; health checks start real `node` processes and a local HTTP server.
-The HTML report is written to `coverage/`.
-
-The hub folder defaults to this project; override with `MCP_HUB_HOME`.
-Always run `diff` before `sync`.
+- The hub folder defaults to this project; override with `MCP_HUB_HOME`.
+- Always run `diff` before `sync`.

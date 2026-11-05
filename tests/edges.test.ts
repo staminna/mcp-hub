@@ -16,6 +16,8 @@ describe("markdown folders", () => {
     try {
       expect(skillDirs()).toEqual([join(home(), ".claude", "skills"), join(home(), ".gemini", "skills")]);
       expect(memoryRoot()).toBe(join(home(), ".claude", "projects"));
+      process.env.MCP_HUB_MEMORY_DIR = ""; // empty means "use the default", not the current folder
+      expect(memoryRoot()).toBe(join(home(), ".claude", "projects"));
     } finally {
       process.env.MCP_HUB_SKILLS_DIRS = saved.s;
       process.env.MCP_HUB_MEMORY_DIR = saved.m;

@@ -22,7 +22,7 @@ export function skillDirs(): string[] {
 }
 
 export function memoryRoot(): string {
-  return process.env.MCP_HUB_MEMORY_DIR ?? join(home, ".claude", "projects");
+  return process.env.MCP_HUB_MEMORY_DIR || join(home, ".claude", "projects");
 }
 
 export interface Frontmatter {
