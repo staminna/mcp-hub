@@ -2,6 +2,7 @@ import chalk from "chalk";
 import { type McpServer, type TargetName } from "../../types.js";
 import { loadConfig, saveConfig, slugify, addServer } from "../../config/store.js";
 import { DEFAULT_HUB_SETTINGS } from "../../config/defaults.js";
+import { checkTargetName } from "../../targets/registry.js";
 
 export async function addCommand(
   name: string,
@@ -16,6 +17,7 @@ export async function addCommand(
     cwd?: string;
   }
 ): Promise<void> {
+  for (const t of options.targets ?? []) if (!checkTargetName(t)) return;
   const config = await loadConfig();
   const id = slugify(name);
 
@@ -63,5 +65,5 @@ export async function addCommand(
   console.log(chalk.dim(`    transport: ${transport}`));
   if (server.command) console.log(chalk.dim(`    command: ${server.command} ${(server.args ?? []).join(" ")}`));
   if (server.url) console.log(chalk.dim(`    url: ${server.url}`));
-  console.log(chalk.dim(`    targets: ${Array.isArray(targets) ? targets.join(", ") : targets}`));
+  console.log(chalk.dim(`    targets: ${targets.join(", ")}`));
 }

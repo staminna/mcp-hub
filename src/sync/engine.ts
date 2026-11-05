@@ -33,6 +33,10 @@ export async function getServersForTarget(
   return { servers, skipped };
 }
 
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 export async function syncTarget(
   config: HubConfig,
   targetName: TargetName,
@@ -40,24 +44,33 @@ export async function syncTarget(
 ): Promise<SyncResult> {
   const adapter = getAdapter(targetName);
   const { servers, skipped } = await getServersForTarget(config, targetName);
-  const diff = (await computeDiff(targetName, servers)).filter(
-    // A skipped server still in the IDE config isn't "unmanaged" — it's held back
-    (d) => !(d.action === "unmanaged" && skipped.some((s) => s.id === d.serverId))
-  );
-
   const result: SyncResult = {
     target: targetName,
-    added: diff.filter((d) => d.action === "add").map((d) => d.serverId),
-    updated: diff.filter((d) => d.action === "update").map((d) => d.serverId),
-    unchanged: diff
-      .filter((d) => d.action === "unchanged")
-      .map((d) => d.serverId),
-    unmanaged: diff
-      .filter((d) => d.action === "unmanaged")
-      .map((d) => d.serverId),
+    added: [],
+    updated: [],
+    unchanged: [],
+    unmanaged: [],
     skipped,
     backedUp: false,
   };
+
+  let diff;
+  try {
+    diff = await computeDiff(targetName, servers);
+  } catch (err) {
+    // e.g. the editor's config can't be parsed — report it, don't abort syncAll
+    result.error = errorMessage(err);
+    return result;
+  }
+  // A skipped server still in the IDE config isn't "unmanaged" — it's held back
+  diff = diff.filter(
+    (d) => !(d.action === "unmanaged" && skipped.some((s) => s.id === d.serverId))
+  );
+  const ids = (action: string) => diff.filter((d) => d.action === action).map((d) => d.serverId);
+  result.added = ids("add");
+  result.updated = ids("update");
+  result.unchanged = ids("unchanged");
+  result.unmanaged = ids("unmanaged");
 
   if (dryRun) return result;
 
@@ -88,7 +101,7 @@ export async function syncTarget(
     // Write the new config
     await adapter.merge(servers);
   } catch (err) {
-    result.error = err instanceof Error ? err.message : String(err);
+    result.error = errorMessage(err);
   }
 
   return result;

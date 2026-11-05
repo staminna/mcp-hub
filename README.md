@@ -61,9 +61,31 @@ Pages: **Servers** (which server goes to which editor, health, on/off), **Change
   See `.env.example` for the variable names.
 - **Sync refuses to run from an empty hub** (e.g. `mcp-hub.json` not found).
 - Every write is preceded by a backup in `~/.mcp-hub/backups` and done atomically.
-- The Claude Code target only replaces the `mcpServers` key in `~/.claude.json` and
-  refuses to write if it can't parse that file.
+- Sync only replaces the server list in an editor's file. Every other key (Claude Code's
+  state in `~/.claude.json`, `permissions` in Claude settings, Gemini's `ui`…) is kept,
+  and a file that can't be parsed is never written. Docker's own per-server
+  `config.yaml` (no server list) is left alone.
+- `deploy` (SSH or Kubernetes) merges the same way, fills in `${VAR}` values, and skips
+  servers with missing vars.
 - Skills/memories: only existing `.md` files inside those folders can be edited.
+
+## Tests
+
+```bash
+npm test                # 275 tests (backend + dashboard)
+npm run test:coverage   # same, with coverage; fails below 95% on any metric
+```
+
+| Statements | Branches | Functions | Lines |
+|---|---|---|---|
+| 100% | 99.4% | 100% | 100% |
+
+Coverage includes the CLI, API server, sync, adapters, health, discovery, deploy and the
+dashboard (`web/`, run in jsdom). Tests never touch your real configs:
+`tests/setup.ts` points `HOME` and the hub folder at a fresh temp folder before any code
+loads, and `tests/isolation.test.ts` fails the run if any path escapes it. SSH, kubectl
+and npm are faked; health checks start real `node` processes and a local HTTP server.
+The HTML report is written to `coverage/`.
 
 The hub folder defaults to this project; override with `MCP_HUB_HOME`.
 Always run `diff` before `sync`.

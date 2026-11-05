@@ -115,3 +115,40 @@ export abstract class TargetAdapter {
     await this.write(serialized);
   }
 }
+
+/**
+ * Parse an editor's existing JSON config. Throws on anything that isn't a JSON
+ * object: falling back to {} and writing would wipe the user's file.
+ */
+export function parseExistingJson(raw: string, path: string): Record<string, unknown> {
+  if (!raw.trim()) return {};
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error(`${path} isn't valid JSON, so it wasn't changed`);
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error(`${path} isn't a JSON object, so it wasn't changed`);
+  }
+  return parsed as Record<string, unknown>;
+}
+
+/**
+ * An editor that keeps its servers under one key of a JSON file. Writing only
+ * replaces that key; every other key in the file is kept as it was.
+ */
+export abstract class JsonTargetAdapter extends TargetAdapter {
+  protected serversKey = "mcpServers";
+
+  deserialize(raw: string): Map<string, SerializedServer> {
+    const parsed = parseExistingJson(raw, this.configPath);
+    const servers = (parsed[this.serversKey] ?? {}) as Record<string, SerializedServer>;
+    return new Map(Object.entries(servers));
+  }
+
+  serialize(servers: Map<string, SerializedServer>, existingRaw: string): string {
+    const existing = parseExistingJson(existingRaw, this.configPath);
+    return JSON.stringify({ ...existing, [this.serversKey]: Object.fromEntries(servers) }, null, 2) + "\n";
+  }
+}

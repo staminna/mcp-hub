@@ -8,6 +8,9 @@ import targetsRouter from "./api/targets.js";
 import healthRouter from "./api/health.js";
 import discoverRouter from "./api/discover.js";
 import { skillsRouter, memoriesRouter } from "./api/content.js";
+import { getTargetNames } from "../targets/registry.js";
+import { type TargetName } from "../types.js";
+import { route } from "./route.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -31,16 +34,25 @@ export function createServer(): express.Express {
   app.use("/api/skills", skillsRouter);
   app.use("/api/memories", memoriesRouter);
 
-  // Import endpoint
-  app.post("/api/import/:ide", async (req, res) => {
+  // Import endpoint: runs the CLI import and returns what it printed
+  app.post("/api/import/:ide", route(async (req, res) => {
+    const ide = req.params.ide as TargetName;
+    if (!getTargetNames().includes(ide)) {
+      return res.status(400).json({ error: `Unknown target: ${ide}` });
+    }
     const { importCommand } = await import("../cli/commands/import.js");
     const logs: string[] = [];
     const origLog = console.log;
     console.log = (...args: unknown[]) => logs.push(args.join(" "));
-    await importCommand({ from: req.params.ide });
-    console.log = origLog;
+    try {
+      await importCommand({ from: ide });
+    } catch (err) {
+      return res.status(500).json({ error: (err as Error).message, logs });
+    } finally {
+      console.log = origLog;
+    }
     res.json({ logs });
-  });
+  }));
 
   // Serve dashboard
   if (webDir) {
@@ -55,6 +67,11 @@ export function createServer(): express.Express {
         );
     });
   }
+
+  // Errors from any route come back as JSON, never as a crash or an HTML page
+  app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    res.status(500).json({ error: err.message });
+  });
 
   return app;
 }

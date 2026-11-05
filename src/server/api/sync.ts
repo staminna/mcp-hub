@@ -1,52 +1,49 @@
 import { Router } from "express";
-import { type TargetName } from "../../types.js";
+import { route } from "../route.js";
 import { loadConfig } from "../../config/store.js";
-import { syncTarget, syncAll, getServersForTarget } from "../../sync/engine.js";
-import { computeDiff } from "../../sync/diff.js";
-import { getTargetNames } from "../../targets/registry.js";
+import { syncAll, getServersForTarget } from "../../sync/engine.js";
+import { getTargetNames, getAdapter } from "../../targets/registry.js";
 
 const router = Router();
 
 // POST /api/sync/all
-router.post("/all", async (_req, res) => {
+router.post("/all", route(async (_req, res) => {
   const config = await loadConfig();
   const results = await syncAll(config);
   res.json(results);
-});
+}));
 
 // GET /api/sync/diff
-router.get("/diff", async (_req, res) => {
+router.get("/diff", route(async (_req, res) => {
   const config = await loadConfig();
   const targets = getTargetNames();
-  const { getAdapter } = await import("../../targets/registry.js");
-
-  const targetDiffs = [];
+  const targetDiffs: Array<{ name: string; label: string; hasChanges: boolean; before: string; after: string; error?: string }> = [];
 
   for (const targetName of targets) {
     const adapter = getAdapter(targetName);
     const { servers } = await getServersForTarget(config, targetName);
 
-    // Get current config as string
-    let beforeStr = "";
+    let current: Map<string, unknown>;
     try {
-      const currentServers = await adapter.read();
-      const currentObj: Record<string, unknown> = {};
-      for (const [id, s] of currentServers) currentObj[id] = s;
-      beforeStr = JSON.stringify({ mcpServers: currentObj }, null, 2);
-    } catch {
-      beforeStr = "{}";
+      current = await adapter.read();
+    } catch (err) {
+      // Unreadable config: sync would refuse it too, so say so instead of diffing against {}
+      targetDiffs.push({
+        name: targetName,
+        label: adapter.config.displayName,
+        hasChanges: false,
+        before: "",
+        after: "",
+        error: (err as Error).message,
+      });
+      continue;
     }
-
-    // Get desired config as string
+    const before = Object.fromEntries(current);
     // Sync is non-destructive: start from what's already there
-    let desiredObj: Record<string, unknown> = {};
-    try {
-      desiredObj = JSON.parse(beforeStr).mcpServers ?? {};
-    } catch {}
-    for (const s of servers) {
-      desiredObj[s.id] = adapter.toSerializedServer(s);
-    }
-    const afterStr = JSON.stringify({ mcpServers: desiredObj }, null, 2);
+    const after: Record<string, unknown> = { ...before };
+    for (const s of servers) after[s.id] = adapter.toSerializedServer(s);
+    const beforeStr = JSON.stringify({ mcpServers: before }, null, 2);
+    const afterStr = JSON.stringify({ mcpServers: after }, null, 2);
 
     targetDiffs.push({
       name: targetName,
@@ -58,6 +55,6 @@ router.get("/diff", async (_req, res) => {
   }
 
   res.json({ targets: targetDiffs });
-});
+}));
 
 export default router;

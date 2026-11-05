@@ -1,102 +1,56 @@
+import { parse, stringify } from "yaml";
 import { TargetAdapter, type SerializedServer } from "./base.js";
 import { TARGET_CONFIGS } from "../config/defaults.js";
 
+type Doc = Record<string, unknown>;
+
+/**
+ * Docker MCP config (YAML), servers under "mcpServers" (or legacy "servers").
+ *
+ * Docker Desktop's MCP Toolkit also keeps a ~/.docker/mcp/config.yaml, but that
+ * one holds per-server settings, not a server list. Writing would overwrite it,
+ * so a non-empty file without a server list is refused rather than changed.
+ */
 export class DockerAdapter extends TargetAdapter {
   constructor() {
     super(TARGET_CONFIGS["docker"]);
   }
 
-  deserialize(raw: string): Map<string, SerializedServer> {
-    // Dynamic import for yaml
-    const servers = new Map<string, SerializedServer>();
-    if (!raw.trim()) return servers;
-
-    // Simple YAML parsing for Docker MCP config
-    // Docker MCP uses a YAML format with mcpServers key
+  private parseDoc(raw: string): Doc {
+    if (!raw.trim()) return {};
+    let doc: unknown;
     try {
-      // We'll use a simple approach — import yaml at runtime
-      const lines = raw.split("\n");
-      let currentServer: string | null = null;
-      let currentConfig: SerializedServer = {};
-      let inMcpServers = false;
-      let inArgs = false;
-
-      for (const line of lines) {
-        const trimmed = line.trimEnd();
-        if (trimmed === "mcpServers:" || trimmed === "servers:") {
-          inMcpServers = true;
-          continue;
-        }
-        if (!inMcpServers) continue;
-
-        // Top-level server entry (2 spaces)
-        const serverMatch = trimmed.match(/^ {2}(\S+):$/);
-        if (serverMatch) {
-          if (currentServer) {
-            servers.set(currentServer, currentConfig);
-          }
-          currentServer = serverMatch[1];
-          currentConfig = {};
-          inArgs = false;
-          continue;
-        }
-
-        // Server properties (4 spaces)
-        const propMatch = trimmed.match(/^ {4}(\w+):\s*(.*)$/);
-        if (propMatch && currentServer) {
-          const [, key, value] = propMatch;
-          if (key === "args") {
-            inArgs = true;
-            currentConfig.args = [];
-          } else {
-            inArgs = false;
-            (currentConfig as Record<string, unknown>)[key] = value.replace(
-              /^["']|["']$/g,
-              ""
-            );
-          }
-          continue;
-        }
-
-        // Args list items (6 spaces)
-        const argMatch = trimmed.match(/^ {6}- (.+)$/);
-        if (argMatch && inArgs && currentConfig.args) {
-          currentConfig.args.push(argMatch[1].replace(/^["']|["']$/g, ""));
-        }
-      }
-      if (currentServer) {
-        servers.set(currentServer, currentConfig);
-      }
+      doc = parse(raw);
     } catch {
-      // If YAML parsing fails, return empty
+      throw new Error(`${this.configPath} isn't valid YAML, so it wasn't changed`);
     }
-    return servers;
+    if (doc == null) return {};
+    if (typeof doc !== "object" || Array.isArray(doc)) {
+      throw new Error(`${this.configPath} isn't a YAML mapping, so it wasn't changed`);
+    }
+    return doc as Doc;
   }
 
-  serialize(
-    servers: Map<string, SerializedServer>,
-    _existingRaw: string
-  ): string {
-    const lines: string[] = ["mcpServers:"];
+  private key(doc: Doc): "mcpServers" | "servers" | null {
+    if ("mcpServers" in doc) return "mcpServers";
+    if ("servers" in doc) return "servers";
+    return null;
+  }
 
-    for (const [id, server] of servers) {
-      lines.push(`  ${id}:`);
-      if (server.command) lines.push(`    command: "${server.command}"`);
-      if (server.args?.length) {
-        lines.push(`    args:`);
-        for (const arg of server.args) {
-          lines.push(`      - "${arg}"`);
-        }
-      }
-      if (server.url) lines.push(`    url: "${server.url}"`);
-      if (server.env) {
-        lines.push(`    env:`);
-        for (const [k, v] of Object.entries(server.env)) {
-          lines.push(`      ${k}: "${v}"`);
-        }
-      }
+  deserialize(raw: string): Map<string, SerializedServer> {
+    const doc = this.parseDoc(raw);
+    const key = this.key(doc);
+    return new Map(Object.entries((key && (doc[key] as Record<string, SerializedServer>)) || {}));
+  }
+
+  serialize(servers: Map<string, SerializedServer>, existingRaw: string): string {
+    const doc = this.parseDoc(existingRaw);
+    const key = this.key(doc);
+    if (!key && Object.keys(doc).length > 0) {
+      throw new Error(
+        `${this.configPath} has no server list (it looks like Docker's own per-server settings), so it wasn't changed`
+      );
     }
-
-    return lines.join("\n") + "\n";
+    return stringify({ ...doc, [key ?? "mcpServers"]: Object.fromEntries(servers) });
   }
 }

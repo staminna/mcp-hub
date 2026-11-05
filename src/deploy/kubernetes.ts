@@ -1,39 +1,50 @@
-import { exec } from "child_process";
-import { promisify } from "util";
+import { spawn } from "child_process";
+import { stringify } from "yaml";
 import { type HubConfig, type TargetName } from "../types.js";
 import { getAdapter } from "../targets/registry.js";
+import { getServersForTarget } from "../sync/engine.js";
 
-const execAsync = promisify(exec);
+/** Run a command with input on stdin (no shell, so nothing is interpolated). */
+function run(cmd: string, args: string[], input: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn(cmd, args, { stdio: ["pipe", "pipe", "pipe"] });
+    let out = "";
+    let err = "";
+    proc.stdout.on("data", (d) => (out += d));
+    proc.stderr.on("data", (d) => (err += d));
+    proc.on("error", reject);
+    proc.on("close", (code) =>
+      code === 0 ? resolve(out) : reject(new Error(err.trim() || `${cmd} exited with ${code}`))
+    );
+    proc.stdin.end(input);
+  });
+}
 
+/**
+ * Apply the target's config as a ConfigMap. The manifest goes to kubectl on
+ * stdin, so resolved tokens never appear in the process list.
+ */
 export async function deployToK8s(
   config: HubConfig,
   targetName: TargetName,
-  options: {
-    context?: string;
-    namespace?: string;
-    configMapName?: string;
-  } = {}
+  options: { context?: string; namespace?: string; configMapName?: string } = {}
 ): Promise<string> {
   const adapter = getAdapter(targetName);
-  const servers = config.servers.filter((s) => {
-    if (s.disabled) return false;
-    if (s.targets === "*") return true;
-    return s.targets.includes(targetName);
-  });
-
-  const serialized = new Map();
-  for (const server of servers) {
-    serialized.set(server.id, adapter.toSerializedServer(server));
-  }
+  const { servers, skipped } = await getServersForTarget(config, targetName);
+  const serialized = new Map(servers.map((s) => [s.id, adapter.toSerializedServer(s)]));
   const content = adapter.serialize(serialized, "");
 
   const ns = options.namespace ?? "default";
   const name = options.configMapName ?? "mcp-config";
-  const contextFlag = options.context ? `--context ${options.context}` : "";
+  const manifest = stringify({
+    apiVersion: "v1",
+    kind: "ConfigMap",
+    metadata: { name, namespace: ns },
+    data: { "mcp-config": content },
+  });
+  const args = [...(options.context ? ["--context", options.context] : []), "apply", "-f", "-"];
 
-  // Create or update ConfigMap
-  const cmd = `kubectl ${contextFlag} -n ${ns} create configmap ${name} --from-literal=mcp-config='${content.replace(/'/g, "'\\''")}' --dry-run=client -o yaml | kubectl ${contextFlag} apply -f -`;
-
-  const { stdout } = await execAsync(cmd);
-  return `Deployed ${servers.length} servers to k8s ConfigMap ${ns}/${name}: ${stdout.trim()}`;
+  const stdout = await run("kubectl", args, manifest);
+  const held = skipped.length ? ` (skipped, missing in .env: ${skipped.map((s) => s.id).join(", ")})` : "";
+  return `Deployed ${servers.length} servers to k8s ConfigMap ${ns}/${name}${held}: ${stdout.trim()}`;
 }

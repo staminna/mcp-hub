@@ -5,7 +5,7 @@ import { resolveServer } from "../secrets/manager.js";
 
 const TIMEOUT_MS = 10000;
 
-async function checkStdio(server: McpServer): Promise<HealthResult> {
+async function checkStdio(server: McpServer, timeoutMs: number): Promise<HealthResult> {
   const start = Date.now();
 
   return new Promise((resolve) => {
@@ -41,7 +41,7 @@ async function checkStdio(server: McpServer): Promise<HealthResult> {
           checkedAt: new Date().toISOString(),
         });
       }
-    }, TIMEOUT_MS);
+    }, timeoutMs);
 
     proc.stdout.on("data", (data) => {
       stdout += data.toString();
@@ -110,7 +110,7 @@ async function checkStdio(server: McpServer): Promise<HealthResult> {
   });
 }
 
-async function checkHttp(server: McpServer): Promise<HealthResult> {
+async function checkHttp(server: McpServer, timeoutMs: number): Promise<HealthResult> {
   const start = Date.now();
 
   if (!server.url) {
@@ -124,7 +124,7 @@ async function checkHttp(server: McpServer): Promise<HealthResult> {
 
   try {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
 
     const response = await fetch(server.url, {
       method: "HEAD",
@@ -151,8 +151,11 @@ async function checkHttp(server: McpServer): Promise<HealthResult> {
   }
 }
 
-export async function checkHealth(raw: McpServer): Promise<HealthResult> {
-  const { server, missing } = resolveServer(raw, await loadEnvFile());
+export async function checkHealth(
+  raw: McpServer,
+  { timeoutMs = TIMEOUT_MS, envFile }: { timeoutMs?: number; envFile?: Record<string, string> } = {}
+): Promise<HealthResult> {
+  const { server, missing } = resolveServer(raw, envFile ?? (await loadEnvFile()));
   if (missing.length > 0) {
     return {
       serverId: raw.id,
@@ -162,13 +165,13 @@ export async function checkHealth(raw: McpServer): Promise<HealthResult> {
     };
   }
   if (server.transport === "stdio") {
-    return checkStdio(server);
+    return checkStdio(server, timeoutMs);
   }
-  return checkHttp(server);
+  return checkHttp(server, timeoutMs);
 }
 
 export async function checkAllHealth(
   servers: McpServer[]
 ): Promise<HealthResult[]> {
-  return Promise.all(servers.map(checkHealth));
+  return Promise.all(servers.map((s) => checkHealth(s)));
 }

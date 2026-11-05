@@ -4,6 +4,16 @@ import { type DiscoveryResult } from "../types.js";
 
 const execAsync = promisify(exec);
 
+/**
+ * Hide secrets in a command line: values of --*key/token/secret/password*
+ * flags or KEY=value pairs, and long opaque strings that look like tokens.
+ */
+export function redact(command: string): string {
+  return command
+    .replace(/((?:--?|\b)[\w-]*(?:key|token|secret|password|auth)[\w-]*[=\s])("[^"]*"|'[^']*'|\S+)/gi, "$1•••")
+    .replace(/\b[A-Za-z0-9_\-]{32,}\b/g, "•••");
+}
+
 export async function findRunningMcpProcesses(): Promise<DiscoveryResult[]> {
   try {
     const { stdout } = await execAsync("ps aux");
@@ -19,13 +29,13 @@ export async function findRunningMcpProcesses(): Promise<DiscoveryResult[]> {
       ) {
         // Extract the command part
         const parts = line.trim().split(/\s+/);
-        const command = parts.slice(10).join(" ");
+        const command = redact(parts.slice(10).join(" "));
         if (command) {
           results.push({
-            name: command.split("/").pop()?.split(" ")[0] ?? "unknown",
+            name: command.split("/").at(-1)!.split(" ")[0],
             source: "process",
             description: `Running process: ${command.substring(0, 100)}`,
-            command: parts[10],
+            command: redact(parts[10]),
           });
         }
       }

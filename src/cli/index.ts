@@ -104,7 +104,10 @@ export function createCLI(): Command {
     .command("serve")
     .description("Start web dashboard")
     .option("--port <port>", "Port number", "3847")
-    .action((opts) => serveCommand({ port: parseInt(opts.port) }));
+    .action(async (opts) => {
+      // A busy port is already explained by serveCommand; don't add a stack trace
+      await serveCommand({ port: parseInt(opts.port) }).catch(() => {});
+    });
 
   program
     .command("deploy <name>")

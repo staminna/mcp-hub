@@ -1,44 +1,30 @@
-import { TargetAdapter, type SerializedServer } from "./base.js";
+import { JsonTargetAdapter, parseExistingJson, type SerializedServer } from "./base.js";
 import { TARGET_CONFIGS } from "../config/defaults.js";
+import { type McpServer } from "../types.js";
 
-export class VscodeAdapter extends TargetAdapter {
+/**
+ * VS Code mcp.json: servers live under "servers" and each needs a "type".
+ * Older hub versions wrote "mcpServers"; those are still read.
+ */
+export class VscodeAdapter extends JsonTargetAdapter {
+  protected serversKey = "servers";
+
   constructor() {
     super(TARGET_CONFIGS["vscode"]);
   }
 
   deserialize(raw: string): Map<string, SerializedServer> {
-    const parsed = JSON.parse(raw);
-    const servers = new Map<string, SerializedServer>();
-    // VS Code uses "mcp" → "servers" structure in settings.json
-    const mcpServers = parsed.mcpServers ?? parsed.mcp?.servers ?? {};
-    for (const [id, config] of Object.entries(mcpServers)) {
-      servers.set(id, config as SerializedServer);
-    }
-    return servers;
+    const parsed = parseExistingJson(raw, this.configPath) as {
+      servers?: Record<string, SerializedServer>;
+      mcpServers?: Record<string, SerializedServer>;
+      mcp?: { servers?: Record<string, SerializedServer> };
+    };
+    return new Map(Object.entries(parsed.servers ?? parsed.mcpServers ?? parsed.mcp?.servers ?? {}));
   }
 
-  serialize(
-    servers: Map<string, SerializedServer>,
-    existingRaw: string
-  ): string {
-    let existing: Record<string, unknown> = {};
-    if (existingRaw) {
-      try {
-        existing = JSON.parse(existingRaw);
-      } catch {
-        existing = {};
-      }
-    }
-
-    // Preserve all existing keys
-    const result: Record<string, unknown> = { ...existing };
-
-    const mcpServers: Record<string, SerializedServer> = {};
-    for (const [id, server] of servers) {
-      mcpServers[id] = server;
-    }
-    result.mcpServers = mcpServers;
-
-    return JSON.stringify(result, null, 2) + "\n";
+  toSerializedServer(server: McpServer): SerializedServer {
+    const s = super.toSerializedServer(server);
+    const type = server.transport === "stdio" ? "stdio" : server.transport === "sse" ? "sse" : "http";
+    return { type, ...s };
   }
 }

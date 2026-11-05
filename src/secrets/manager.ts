@@ -1,7 +1,4 @@
 import { type HubConfig, type McpServer } from "../types.js";
-import { loadEnvFile } from "./env-file.js";
-
-const VAR_PATTERN = /\$\{([^}]+)\}/g;
 
 /**
  * Resolve ${VAR} references in a server's env values and args.
@@ -32,24 +29,6 @@ export function resolveServer(
   }
   if (server.args) resolved.args = server.args.map(resolve);
   return { server: resolved, missing: [...missing] };
-}
-
-/** Resolve ${VAR} references in env values using .env file + process.env */
-export async function resolveEnvVars(
-  server: McpServer
-): Promise<Record<string, string>> {
-  if (!server.env) return {};
-
-  const envFile = await loadEnvFile();
-  const resolved: Record<string, string> = {};
-
-  for (const [key, value] of Object.entries(server.env)) {
-    resolved[key] = value.replace(VAR_PATTERN, (_, varName: string) => {
-      return envFile[varName] ?? process.env[varName] ?? `\${${varName}}`;
-    });
-  }
-
-  return resolved;
 }
 
 /** Detect literal tokens in server env that should be extracted to .env */

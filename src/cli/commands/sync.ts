@@ -2,12 +2,14 @@ import chalk from "chalk";
 import { type TargetName } from "../../types.js";
 import { loadConfig } from "../../config/store.js";
 import { syncTarget, syncAll } from "../../sync/engine.js";
+import { checkTargetName } from "../../targets/registry.js";
 
 export async function syncCommand(options: {
   target?: string;
   dryRun?: boolean;
   all?: boolean;
 }): Promise<void> {
+  if (!checkTargetName(options.target)) return;
   const config = await loadConfig();
   const dryRun = options.dryRun ?? false;
 

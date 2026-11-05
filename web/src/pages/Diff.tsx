@@ -47,10 +47,15 @@ export function Diff() {
           <section key={t.name} className="diff-target">
             <h2>
               {t.label}
-              <span className={t.hasChanges ? "badge badge-warn" : "badge badge-ok"}>
-                {t.hasChanges ? `${changed.length} change${changed.length === 1 ? "" : "s"}` : "In sync"}
-              </span>
+              {t.error ? (
+                <span className="badge badge-err">Can't read</span>
+              ) : (
+                <span className={t.hasChanges ? "badge badge-warn" : "badge badge-ok"}>
+                  {t.hasChanges ? `${changed.length} change${changed.length === 1 ? "" : "s"}` : "In sync"}
+                </span>
+              )}
             </h2>
+            {t.error && <p className="error-text">{t.error}. Sync leaves this file alone until it's fixed.</p>}
             {changed.length > 0 && (
               <ul className="diff-rows">
                 {changed.map((r) => (

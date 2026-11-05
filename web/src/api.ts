@@ -22,6 +22,8 @@ export interface TargetDiff {
   hasChanges: boolean;
   before: string;
   after: string;
+  /** Set when the editor's config couldn't be read; sync would refuse it too. */
+  error?: string;
 }
 
 export interface SkillEntry {

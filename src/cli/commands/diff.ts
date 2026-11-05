@@ -3,11 +3,12 @@ import { type TargetName } from "../../types.js";
 import { loadConfig } from "../../config/store.js";
 import { computeDiff } from "../../sync/diff.js";
 import { getServersForTarget } from "../../sync/engine.js";
-import { getTargetNames } from "../../targets/registry.js";
+import { getTargetNames, checkTargetName } from "../../targets/registry.js";
 
 export async function diffCommand(options: {
   target?: string;
 }): Promise<void> {
+  if (!checkTargetName(options.target)) return;
   const config = await loadConfig();
 
   const targets = options.target
@@ -22,8 +23,16 @@ export async function diffCommand(options: {
       );
     }
 
+    let all;
+    try {
+      all = await computeDiff(target, servers);
+    } catch (err) {
+      // One unreadable editor config shouldn't hide the others
+      console.log(chalk.red(`  ✗ ${target}: ${(err as Error).message}`));
+      continue;
+    }
     // A skipped server still in the IDE config is held back, not "unmanaged"
-    const diffs = (await computeDiff(target, servers)).filter(
+    const diffs = all.filter(
       (d) => !(d.action === "unmanaged" && skipped.some((sk) => sk.id === d.serverId))
     );
     const changes = diffs.filter(

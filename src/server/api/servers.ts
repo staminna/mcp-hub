@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { route } from "../route.js";
 import { type McpServer } from "../../types.js";
 import {
   loadConfig,
@@ -12,21 +13,21 @@ import {
 const router = Router();
 
 // GET /api/servers
-router.get("/", async (_req, res) => {
+router.get("/", route(async (_req, res) => {
   const config = await loadConfig();
   res.json(config.servers);
-});
+}));
 
 // GET /api/servers/:id
-router.get("/:id", async (req, res) => {
+router.get("/:id", route(async (req, res) => {
   const config = await loadConfig();
   const server = findServer(config, req.params.id);
   if (!server) return res.status(404).json({ error: "Not found" });
   res.json(server);
-});
+}));
 
 // POST /api/servers
-router.post("/", async (req, res) => {
+router.post("/", route(async (req, res) => {
   const config = await loadConfig();
   const body = req.body as Partial<McpServer>;
 
@@ -51,10 +52,10 @@ router.post("/", async (req, res) => {
   const updated = addServer(config, server);
   await saveConfig(updated);
   res.status(201).json(server);
-});
+}));
 
 // PUT /api/servers/:id
-router.put("/:id", async (req, res) => {
+router.put("/:id", route(async (req, res) => {
   const config = await loadConfig();
   const existing = findServer(config, req.params.id);
   if (!existing) return res.status(404).json({ error: "Not found" });
@@ -74,10 +75,10 @@ router.put("/:id", async (req, res) => {
   const newConfig = addServer(config, updated);
   await saveConfig(newConfig);
   res.json(updated);
-});
+}));
 
 // DELETE /api/servers/:id
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", route(async (req, res) => {
   const config = await loadConfig();
   const existing = findServer(config, req.params.id);
   if (!existing) return res.status(404).json({ error: "Not found" });
@@ -85,10 +86,10 @@ router.delete("/:id", async (req, res) => {
   const updated = removeServer(config, req.params.id);
   await saveConfig(updated);
   res.status(204).send();
-});
+}));
 
 // POST /api/servers/:id/toggle
-router.post("/:id/toggle", async (req, res) => {
+router.post("/:id/toggle", route(async (req, res) => {
   const config = await loadConfig();
   const server = findServer(config, req.params.id);
   if (!server) return res.status(404).json({ error: "Not found" });
@@ -96,10 +97,10 @@ router.post("/:id/toggle", async (req, res) => {
   server.disabled = !server.disabled;
   await saveConfig(config);
   res.json(server);
-});
+}));
 
 // POST /api/servers/:id/health
-router.post("/:id/health", async (req, res) => {
+router.post("/:id/health", route(async (req, res) => {
   const config = await loadConfig();
   const server = findServer(config, req.params.id);
   if (!server) return res.status(404).json({ error: "Not found" });
@@ -107,6 +108,6 @@ router.post("/:id/health", async (req, res) => {
   const { checkHealth } = await import("../../health/checker.js");
   const result = await checkHealth(server);
   res.json(result);
-});
+}));
 
 export default router;

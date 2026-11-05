@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { route } from "../route.js";
 import {
   listSkills,
   listMemories,
@@ -11,20 +12,20 @@ import {
 function contentRouter(list: () => Promise<unknown[]>): Router {
   const router = Router();
 
-  router.get("/", async (_req, res) => {
+  router.get("/", route(async (_req, res) => {
     res.json(await list());
-  });
+  }));
 
-  router.get("/file", async (req, res) => {
+  router.get("/file", route(async (req, res) => {
     try {
       const content = await readMarkdown(String(req.query.path ?? ""));
       res.json({ content, ...parseMarkdown(content) });
     } catch (err) {
       res.status(400).json({ error: (err as Error).message });
     }
-  });
+  }));
 
-  router.put("/file", async (req, res) => {
+  router.put("/file", route(async (req, res) => {
     const { path, content } = req.body ?? {};
     if (typeof path !== "string" || typeof content !== "string") {
       return res.status(400).json({ error: "path and content required" });
@@ -35,7 +36,7 @@ function contentRouter(list: () => Promise<unknown[]>): Router {
     } catch (err) {
       res.status(400).json({ error: (err as Error).message });
     }
-  });
+  }));
 
   return router;
 }

@@ -1,10 +1,12 @@
 import { Router } from "express";
+import { homedir } from "os";
+import { route } from "../route.js";
 import { type TargetName } from "../../types.js";
 import { loadConfig } from "../../config/store.js";
 import { getAllAdapters, getAdapter } from "../../targets/registry.js";
 import { syncTarget } from "../../sync/engine.js";
 
-const TARGET_ICONS: Record<string, string> = {
+const TARGET_ICONS: Record<TargetName, string> = {
   "claude-code": "✳️",
   "claude-mcp": "🤖",
   "claude-settings": "⚙️",
@@ -19,20 +21,20 @@ const TARGET_ICONS: Record<string, string> = {
 const router = Router();
 
 // GET /api/targets
-router.get("/", async (_req, res) => {
+router.get("/", route(async (_req, res) => {
   const adapters = getAllAdapters();
   const targets = adapters.map((a) => ({
     name: a.name,
     label: a.config.displayName,
-    icon: TARGET_ICONS[a.name] ?? "📦",
-    path: a.configPath.replace(process.env.HOME ?? "", "~"),
+    icon: TARGET_ICONS[a.name],
+    path: a.configPath.replace(homedir(), "~"),
     exists: a.exists(),
   }));
   res.json(targets);
-});
+}));
 
 // POST /api/targets/:name/sync
-router.post("/:name/sync", async (req, res) => {
+router.post("/:name/sync", route(async (req, res) => {
   const config = await loadConfig();
   const target = req.params.name as TargetName;
 
@@ -44,6 +46,6 @@ router.post("/:name/sync", async (req, res) => {
 
   const result = await syncTarget(config, target);
   res.json(result);
-});
+}));
 
 export default router;

@@ -1,7 +1,7 @@
 import chalk from "chalk";
 import { type McpServer, type TargetName } from "../../types.js";
 import { loadConfig, saveConfig, slugify } from "../../config/store.js";
-import { getAdapter, getAllAdapters } from "../../targets/registry.js";
+import { getAdapter, getAllAdapters, checkTargetName } from "../../targets/registry.js";
 import { extractSecrets } from "../../secrets/manager.js";
 import { loadEnvFile, saveEnvFile } from "../../secrets/env-file.js";
 
@@ -9,12 +9,10 @@ export async function importCommand(options: {
   from?: string;
   all?: boolean;
 }): Promise<void> {
+  if (!checkTargetName(options.from)) return;
   const config = await loadConfig();
-  const adapters = options.from
-    ? [getAdapter(options.from as TargetName)]
-    : options.all
-      ? getAllAdapters()
-      : getAllAdapters();
+  // --all is the default; --from narrows it to one editor
+  const adapters = options.from ? [getAdapter(options.from as TargetName)] : getAllAdapters();
 
   const imported: McpServer[] = [];
   let totalImported = 0;
@@ -51,7 +49,7 @@ export async function importCommand(options: {
           url: partial.url,
           env: partial.env,
           tags: [],
-          disabled: partial.disabled ?? false,
+          disabled: !!partial.disabled,
           disabledTools: partial.disabledTools,
           targets: [adapter.name],
         };

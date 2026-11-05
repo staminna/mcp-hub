@@ -3,6 +3,7 @@ import { type TargetName } from "../../types.js";
 import { loadConfig } from "../../config/store.js";
 import { deployViaSSH } from "../../deploy/ssh.js";
 import { deployToK8s } from "../../deploy/kubernetes.js";
+import { checkTargetName } from "../../targets/registry.js";
 
 export async function deployCommand(
   name: string,
@@ -13,6 +14,7 @@ export async function deployCommand(
     target?: string;
   }
 ): Promise<void> {
+  if (!checkTargetName(options.target)) return;
   const config = await loadConfig();
   const target = (options.target ?? "claude-mcp") as TargetName;
 

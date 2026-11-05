@@ -125,6 +125,7 @@ textarea { resize: vertical; }
 .badge { font-size: 12px; font-weight: 500; border-radius: 99px; padding: 1px 9px; margin-left: 10px; vertical-align: 2px; }
 .badge-ok { color: var(--green); background: rgba(95, 191, 143, 0.12); }
 .badge-warn { color: var(--amber); background: var(--amber-soft); }
+.badge-err { color: var(--red); background: rgba(229, 103, 90, 0.12); }
 
 /* ── The patch bay ─────────────────────────────────────── */
 .matrix-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); }
