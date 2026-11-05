@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "servers": [
+    {
+      "id": "fetch",
+      "name": "fetch",
+      "description": "Fetch web pages as markdown",
+      "transport": "stdio",
+      "command": "uvx",
+      "args": ["mcp-server-fetch"],
+      "tags": ["utility"],
+      "disabled": false,
+      "targets": ["claude-code", "cursor", "windsurf"]
+    },
+    {
+      "id": "memory",
+      "name": "memory",
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"],
+      "tags": ["utility"],
+      "disabled": false,
+      "targets": "*"
+    },
+    {
+      "id": "directus",
+      "name": "directus",
+      "description": "Directus CMS — token comes from .env",
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@directus/content-mcp"],
+      "env": {
+        "DIRECTUS_URL": "https://directus.example.com",
+        "DIRECTUS_TOKEN": "${DIRECTUS_TOKEN}"
+      },
+      "tags": ["cms"],
+      "disabled": false,
+      "targets": ["claude-code", "cursor"]
+    },
+    {
+      "id": "github",
+      "name": "github",
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}" },
+      "tags": ["dev"],
+      "disabled": false,
+      "targets": ["claude-code"]
+    },
+    {
+      "id": "my-vps",
+      "name": "my-vps",
+      "description": "SSH into a server",
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "ssh-mcp", "--", "--host=your-server.example.com", "--user=deploy", "--key=/Users/you/.ssh/id_ed25519"],
+      "tags": ["infra"],
+      "disabled": false,
+      "targets": ["claude-code"]
+    },
+    {
+      "id": "local-server",
+      "name": "local-server",
+      "description": "A server you built locally",
+      "transport": "stdio",
+      "command": "node",
+      "args": ["/path/to/your-mcp-server/dist/index.js"],
+      "tags": ["local"],
+      "disabled": false,
+      "targets": ["claude-code"]
+    },
+    {
+      "id": "stripe",
+      "name": "stripe",
+      "description": "Disabled: not synced anywhere until enabled",
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@stripe/mcp", "--tools=all", "--api-key=${STRIPE_API_KEY}"],
+      "tags": ["payments"],
+      "disabled": true,
+      "targets": ["claude-code"]
+    }
+  ],
+  "settings": {
+    "autoBackup": true,
+    "defaultTargets": ["claude-code", "cursor", "windsurf"]
+  }
+}

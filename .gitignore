@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.env
+*.tgz
+.DS_Store
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/
+
+# Your real server list (hosts, paths) stays local — see mcp-hub.example.json
+mcp-hub.json
+# Stray state files written by other tools
+registered_agents.json
+task_agent_mapping.json

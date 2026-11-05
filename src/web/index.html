@@ -1,0 +1,2557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MCP Hub</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%234f6ef7'/><text x='16' y='24' font-size='22' text-anchor='middle' fill='white'>⚡</text></svg>" />
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/marked@12/marked.min.js"></script>
+  <script src="https://unpkg.com/dompurify@3/dist/purify.min.js"></script>
+  <style>
+    /* ── Design tokens ─────────────────────────────────────────────── */
+    :root {
+      --bg-base:       #0d0f14;
+      --bg-surface:    #13161e;
+      --bg-elevated:   #1a1e2a;
+      --bg-hover:      #1f2435;
+      --bg-active:     #252a3d;
+
+      --border:        #252a3d;
+      --border-focus:  #4f6ef7;
+
+      --text-primary:  #e8ecf4;
+      --text-secondary:#8b93a8;
+      --text-muted:    #545c72;
+      --text-code:     #a8d8b9;
+
+      --accent:        #4f6ef7;
+      --accent-hover:  #6a85ff;
+      --accent-dim:    rgba(79,110,247,.15);
+
+      --green:         #3ecf8e;
+      --green-dim:     rgba(62,207,142,.15);
+      --red:           #f75f5f;
+      --red-dim:       rgba(247,95,95,.15);
+      --yellow:        #f7c948;
+      --yellow-dim:    rgba(247,201,72,.15);
+      --purple:        #b083f0;
+      --purple-dim:    rgba(176,131,240,.15);
+
+      --radius-sm:     4px;
+      --radius:        8px;
+      --radius-lg:     12px;
+
+      --sidebar-w:     220px;
+      --header-h:      56px;
+
+      --font-sans:     'Inter', system-ui, -apple-system, sans-serif;
+      --font-mono:     'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+
+      --shadow-sm:     0 1px 3px rgba(0,0,0,.4);
+      --shadow-md:     0 4px 16px rgba(0,0,0,.5);
+      --shadow-lg:     0 8px 32px rgba(0,0,0,.6);
+
+      --transition:    150ms cubic-bezier(.4,0,.2,1);
+    }
+
+    /* ── Reset & base ──────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body, #root {
+      height: 100%;
+      background: var(--bg-base);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: inherit; text-decoration: none; }
+    button { cursor: pointer; font-family: inherit; font-size: inherit; }
+    input, select, textarea { font-family: inherit; font-size: inherit; }
+
+    /* scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+    /* ── Layout shell ──────────────────────────────────────────────── */
+    .app-shell {
+      display: grid;
+      grid-template-columns: var(--sidebar-w) 1fr;
+      grid-template-rows: var(--header-h) 1fr;
+      grid-template-areas:
+        "sidebar header"
+        "sidebar main";
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── Header ────────────────────────────────────────────────────── */
+    .header {
+      grid-area: header;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      z-index: 10;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-secondary);
+      font-size: 13px;
+    }
+
+    .breadcrumb-sep { color: var(--text-muted); }
+    .breadcrumb-current { color: var(--text-primary); font-weight: 500; }
+
+    .header-actions { display: flex; align-items: center; gap: 8px; }
+
+    /* ── Sidebar ───────────────────────────────────────────────────── */
+    .sidebar {
+      grid-area: sidebar;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-surface);
+      border-right: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    .sidebar-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 16px;
+      height: var(--header-h);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .brand-icon {
+      width: 28px;
+      height: 28px;
+      background: var(--accent);
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      flex-shrink: 0;
+    }
+
+    .brand-name {
+      font-weight: 700;
+      font-size: 15px;
+      letter-spacing: -.3px;
+      color: var(--text-primary);
+    }
+
+    .brand-version {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 1px;
+    }
+
+    .sidebar-nav {
+      flex: 1;
+      padding: 12px 8px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .nav-section-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      padding: 8px 8px 4px;
+      margin-top: 4px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: var(--radius);
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: background var(--transition), color var(--transition);
+      border: none;
+      background: none;
+      width: 100%;
+      text-align: left;
+    }
+
+    .nav-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .nav-item.active { background: var(--accent-dim); color: var(--accent); }
+
+    .nav-item-icon { font-size: 15px; width: 20px; text-align: center; flex-shrink: 0; }
+    .nav-item-label { font-size: 13px; font-weight: 500; }
+
+    .nav-item-badge {
+      margin-left: auto;
+      background: var(--accent-dim);
+      color: var(--accent);
+      font-size: 10px;
+      font-weight: 600;
+      padding: 1px 6px;
+      border-radius: 99px;
+    }
+
+    .sidebar-footer {
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .sidebar-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 6px var(--green);
+    }
+
+    /* ── Main content ──────────────────────────────────────────────── */
+    .main {
+      grid-area: main;
+      overflow-y: auto;
+      background: var(--bg-base);
+    }
+
+    .page {
+      padding: 28px 32px;
+      max-width: 1400px;
+    }
+
+    .page-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 28px;
+      gap: 16px;
+    }
+
+    .page-title {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -.4px;
+      color: var(--text-primary);
+    }
+
+    .page-subtitle {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-top: 3px;
+    }
+
+    .page-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+    /* ── Buttons ───────────────────────────────────────────────────── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      border-radius: var(--radius);
+      font-weight: 500;
+      font-size: 13px;
+      border: 1px solid transparent;
+      transition: all var(--transition);
+      white-space: nowrap;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+
+    .btn-secondary {
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+      border-color: var(--border);
+    }
+    .btn-secondary:hover { background: var(--bg-hover); border-color: var(--text-muted); }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-secondary);
+      border-color: transparent;
+    }
+    .btn-ghost:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+    .btn-danger {
+      background: var(--red-dim);
+      color: var(--red);
+      border-color: rgba(247,95,95,.3);
+    }
+    .btn-danger:hover { background: var(--red); color: #fff; }
+
+    .btn-success {
+      background: var(--green-dim);
+      color: var(--green);
+      border-color: rgba(62,207,142,.3);
+    }
+    .btn-success:hover { background: var(--green); color: #0d0f14; }
+
+    .btn-sm { padding: 4px 10px; font-size: 12px; }
+    .btn-xs { padding: 2px 8px; font-size: 11px; border-radius: var(--radius-sm); }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+
+    /* ── Cards ─────────────────────────────────────────────────────── */
+    .card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      transition: border-color var(--transition), box-shadow var(--transition);
+    }
+
+    .card:hover { border-color: var(--text-muted); }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .card-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .card-body { padding: 20px; }
+
+    /* ── Server grid ───────────────────────────────────────────────── */
+    .server-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 16px;
+    }
+
+    .server-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      cursor: pointer;
+      transition: all var(--transition);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .server-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: var(--accent);
+      opacity: 0;
+      transition: opacity var(--transition);
+    }
+
+    .server-card:hover { border-color: var(--accent); box-shadow: var(--shadow-md); }
+    .server-card:hover::before { opacity: 1; }
+    .server-card.disabled { opacity: .55; }
+
+    .server-card-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .server-card-name {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-primary);
+      letter-spacing: -.2px;
+    }
+
+    .server-card-transport {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+      font-family: var(--font-mono);
+    }
+
+    .server-card-meta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 14px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .server-card-meta-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .server-card-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+    }
+
+    /* ── Health badge ──────────────────────────────────────────────── */
+    .health-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 8px;
+      border-radius: 99px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .health-badge-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .health-badge.healthy {
+      background: var(--green-dim);
+      color: var(--green);
+    }
+    .health-badge.healthy .health-badge-dot { background: var(--green); box-shadow: 0 0 5px var(--green); }
+
+    .health-badge.unhealthy {
+      background: var(--red-dim);
+      color: var(--red);
+    }
+    .health-badge.unhealthy .health-badge-dot { background: var(--red); }
+
+    .health-badge.unknown {
+      background: rgba(139,147,168,.12);
+      color: var(--text-muted);
+    }
+    .health-badge.unknown .health-badge-dot { background: var(--text-muted); }
+
+    .health-badge.checking {
+      background: var(--yellow-dim);
+      color: var(--yellow);
+    }
+    .health-badge.checking .health-badge-dot {
+      background: var(--yellow);
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: .3; }
+    }
+
+    /* ── Tags / pills ──────────────────────────────────────────────── */
+    .tag-list { display: flex; flex-wrap: wrap; gap: 5px; }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: 99px;
+      font-size: 11px;
+      font-weight: 500;
+      background: var(--bg-elevated);
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+    }
+
+    .tag-accent { background: var(--accent-dim); color: var(--accent); border-color: rgba(79,110,247,.25); }
+    .tag-purple { background: var(--purple-dim); color: var(--purple); border-color: rgba(176,131,240,.25); }
+    .tag-green  { background: var(--green-dim);  color: var(--green);  border-color: rgba(62,207,142,.25); }
+
+    /* ── Group section ─────────────────────────────────────────────── */
+    .group-section { margin-bottom: 36px; }
+
+    .group-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .group-label {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    .group-count {
+      background: var(--bg-elevated);
+      color: var(--text-muted);
+      font-size: 10px;
+      font-weight: 600;
+      padding: 1px 7px;
+      border-radius: 99px;
+    }
+
+    .group-divider {
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ── Stats row ─────────────────────────────────────────────────── */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+
+    .stat-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 16px 20px;
+    }
+
+    .stat-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    .stat-value {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -1px;
+      color: var(--text-primary);
+    }
+
+    .stat-sub {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-top: 3px;
+    }
+
+    /* ── Toast ─────────────────────────────────────────────────────── */
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 9999;
+    }
+
+    .toast {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 12px 16px;
+      min-width: 280px;
+      max-width: 380px;
+      box-shadow: var(--shadow-lg);
+      animation: slideIn .2s ease;
+    }
+
+    .toast.leaving { animation: slideOut .2s ease forwards; }
+
+    @keyframes slideIn {
+      from { transform: translateX(40px); opacity: 0; }
+      to   { transform: translateX(0);    opacity: 1; }
+    }
+    @keyframes slideOut {
+      from { transform: translateX(0);   opacity: 1; }
+      to   { transform: translateX(40px); opacity: 0; }
+    }
+
+    .toast-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+    .toast-body { flex: 1; }
+    .toast-title { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+    .toast-msg   { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+
+    .toast.success { border-left: 3px solid var(--green); }
+    .toast.error   { border-left: 3px solid var(--red); }
+    .toast.info    { border-left: 3px solid var(--accent); }
+    .toast.warning { border-left: 3px solid var(--yellow); }
+
+    /* ── Spinner ───────────────────────────────────────────────────── */
+    .spinner {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+    }
+
+    .spinner-lg { width: 32px; height: 32px; border-width: 3px; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading-center {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 60px 0;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+
+    /* ── Forms ─────────────────────────────────────────────────────── */
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .form-full { grid-column: 1 / -1; }
+
+    .field { display: flex; flex-direction: column; gap: 6px; }
+
+    .field-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      letter-spacing: .03em;
+    }
+
+    .field-hint {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .field-input,
+    .field-select,
+    .field-textarea {
+      background: var(--bg-base);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text-primary);
+      padding: 9px 12px;
+      transition: border-color var(--transition), box-shadow var(--transition);
+      outline: none;
+      width: 100%;
+    }
+
+    .field-input:focus,
+    .field-select:focus,
+    .field-textarea:focus {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px rgba(79,110,247,.15);
+    }
+
+    .field-textarea { min-height: 80px; resize: vertical; font-family: var(--font-mono); font-size: 12px; }
+
+    .field-select option { background: var(--bg-elevated); color: var(--text-primary); }
+
+    /* ── Env vars table ────────────────────────────────────────────── */
+    .env-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .env-table th {
+      text-align: left;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .env-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+
+    .env-table tr:last-child td { border-bottom: none; }
+    .env-table tr:hover td { background: var(--bg-hover); }
+
+    .env-key {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-code);
+    }
+
+    .env-value {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .env-masked { letter-spacing: 2px; color: var(--text-muted); }
+
+    /* ── Code block ────────────────────────────────────────────────── */
+    .code-block {
+      background: var(--bg-base);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-code);
+      overflow-x: auto;
+      white-space: pre;
+      line-height: 1.6;
+    }
+
+    /* ── Diff view ─────────────────────────────────────────────────── */
+    .diff-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .diff-pane {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+
+    .diff-pane-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: var(--bg-elevated);
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .diff-line {
+      display: flex;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .diff-line-num {
+      flex-shrink: 0;
+      width: 40px;
+      padding: 0 8px;
+      text-align: right;
+      color: var(--text-muted);
+      background: var(--bg-elevated);
+      user-select: none;
+      border-right: 1px solid var(--border);
+    }
+
+    .diff-line-content { padding: 0 12px; flex: 1; }
+
+    .diff-line.added    { background: rgba(62,207,142,.08); }
+    .diff-line.removed  { background: rgba(247,95,95,.08); }
+    .diff-line.added .diff-line-content    { color: var(--green); }
+    .diff-line.removed .diff-line-content  { color: var(--red); }
+    .diff-line.added .diff-line-num    { color: var(--green); }
+    .diff-line.removed .diff-line-num  { color: var(--red); }
+
+    /* ── Target list ───────────────────────────────────────────────── */
+    .target-list { display: flex; flex-direction: column; gap: 10px; }
+
+    .target-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 16px 20px;
+      transition: border-color var(--transition);
+    }
+
+    .target-item:hover { border-color: var(--text-muted); }
+
+    .target-item-left { display: flex; align-items: center; gap: 14px; }
+
+    .target-icon {
+      width: 40px; height: 40px;
+      border-radius: var(--radius);
+      background: var(--bg-elevated);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+
+    .target-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .target-path {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .target-item-right { display: flex; align-items: center; gap: 8px; }
+
+    /* ── Discovery cards ───────────────────────────────────────────── */
+    .discover-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 14px;
+    }
+
+    .discover-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 18px;
+      transition: all var(--transition);
+    }
+
+    .discover-card:hover { border-color: var(--accent); box-shadow: var(--shadow-sm); }
+
+    .discover-card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .discover-card-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+    }
+
+    .discover-card-desc {
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+      margin-bottom: 12px;
+    }
+
+    .discover-card-meta {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* ── Process row ───────────────────────────────────────────────── */
+    .process-list { display: flex; flex-direction: column; gap: 8px; }
+
+    .process-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 16px;
+    }
+
+    .process-pid {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-right: 12px;
+      min-width: 50px;
+    }
+
+    .process-cmd {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-code);
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* ── Tabs ──────────────────────────────────────────────────────── */
+    .tabs {
+      display: flex;
+      gap: 2px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 24px;
+    }
+
+    .tab {
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      border: none;
+      background: none;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all var(--transition);
+      margin-bottom: -1px;
+    }
+
+    .tab:hover { color: var(--text-primary); }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    /* ── Toggle switch ─────────────────────────────────────────────── */
+    .toggle {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      width: 36px;
+      height: 20px;
+    }
+
+    .toggle input { opacity: 0; width: 0; height: 0; }
+
+    .toggle-track {
+      position: absolute;
+      inset: 0;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 99px;
+      transition: all var(--transition);
+      cursor: pointer;
+    }
+
+    .toggle-thumb {
+      position: absolute;
+      left: 3px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 13px; height: 13px;
+      background: var(--text-muted);
+      border-radius: 50%;
+      transition: all var(--transition);
+    }
+
+    .toggle input:checked + .toggle-track { background: var(--accent); border-color: var(--accent); }
+    .toggle input:checked ~ .toggle-thumb { left: 20px; background: #fff; }
+
+    /* ── Empty state ───────────────────────────────────────────────── */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 64px 24px;
+      gap: 12px;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    .empty-icon { font-size: 40px; }
+    .empty-title { font-size: 15px; font-weight: 600; color: var(--text-secondary); }
+    .empty-desc  { font-size: 13px; max-width: 300px; line-height: 1.5; }
+
+    /* ── Misc utility ──────────────────────────────────────────────── */
+    .flex        { display: flex; }
+    .flex-center { display: flex; align-items: center; }
+    .gap-8       { gap: 8px; }
+    .gap-12      { gap: 12px; }
+    .mt-8        { margin-top: 8px; }
+    .mt-16       { margin-top: 16px; }
+    .mt-24       { margin-top: 24px; }
+    .text-mono   { font-family: var(--font-mono); font-size: 12px; }
+    .text-muted  { color: var(--text-muted); }
+    .text-secondary { color: var(--text-secondary); }
+    .text-danger { color: var(--red); }
+    .text-success { color: var(--green); }
+    .fw-600      { font-weight: 600; }
+
+    /* ── Responsive ────────────────────────────────────────────────── */
+    @media (max-width: 900px) {
+      .app-shell {
+        grid-template-columns: 1fr;
+        grid-template-rows: var(--header-h) 1fr;
+        grid-template-areas: "header" "main";
+      }
+      .sidebar { display: none; }
+      .stats-row { grid-template-columns: 1fr 1fr; }
+      .diff-grid { grid-template-columns: 1fr; }
+      .form-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 600px) {
+      .page { padding: 16px; }
+      .stats-row { grid-template-columns: 1fr 1fr; }
+    }
+    /* ── Skills / Memories (markdown browser) ─────────────────────── */
+    .md-layout { display: grid; grid-template-columns: 320px 1fr; gap: 16px; align-items: start; }
+    .md-list { max-height: calc(100vh - 200px); overflow-y: auto; padding: 6px; }
+    .md-group { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); padding: 10px 8px 4px; }
+    .md-item { display: block; width: 100%; text-align: left; padding: 8px 10px; border-radius: 6px; background: none; border: 1px solid transparent; color: var(--text-primary); cursor: pointer; }
+    .md-item:hover { background: var(--bg-hover); }
+    .md-item.active { background: var(--accent-dim); border-color: var(--accent); }
+    .md-item-name { font-size: 13px; font-weight: 500; display: flex; gap: 6px; align-items: center; }
+    .md-item-desc { font-size: 11px; color: var(--text-secondary); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+    .md-path { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); word-break: break-all; }
+    .md-editor { width: 100%; min-height: calc(100vh - 300px); font-family: var(--font-mono); font-size: 12px; line-height: 1.6; }
+    .md-frontmatter { font-family: var(--font-mono); font-size: 12px; background: var(--bg-base); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; margin-bottom: 16px; color: var(--text-code); white-space: pre-wrap; }
+    .markdown { font-size: 14px; line-height: 1.7; color: var(--text-primary); }
+    .markdown h1, .markdown h2, .markdown h3, .markdown h4 { margin: 1.2em 0 .5em; line-height: 1.3; }
+    .markdown h1 { font-size: 22px; } .markdown h2 { font-size: 18px; } .markdown h3 { font-size: 15px; }
+    .markdown p, .markdown ul, .markdown ol, .markdown pre, .markdown table, .markdown blockquote { margin: 0 0 .9em; }
+    .markdown ul, .markdown ol { padding-left: 1.5em; }
+    .markdown a { color: var(--accent-hover); }
+    .markdown code { font-family: var(--font-mono); font-size: 12px; background: var(--bg-base); padding: 1px 5px; border-radius: 4px; color: var(--text-code); }
+    .markdown pre { background: var(--bg-base); border: 1px solid var(--border); border-radius: 6px; padding: 12px; overflow-x: auto; }
+    .markdown pre code { background: none; padding: 0; }
+    .markdown blockquote { border-left: 3px solid var(--border); padding-left: 12px; color: var(--text-secondary); }
+    .markdown table { border-collapse: collapse; }
+    .markdown th, .markdown td { border: 1px solid var(--border); padding: 4px 10px; }
+    @media (max-width: 900px) { .md-layout { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useCallback, useRef, createContext, useContext } = React;
+
+/* ═══════════════════════════════════════════════════════════════════
+   API LAYER
+══════════════════════════════════════════════════════════════════════ */
+const api = {
+  async request(method, path, body) {
+    const opts = {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+    };
+    if (body != null) opts.body = JSON.stringify(body);
+    const res = await fetch(path, opts);
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || `HTTP ${res.status}`);
+    }
+    const ct = res.headers.get('content-type') || '';
+    if (ct.includes('application/json')) return res.json();
+    return res.text();
+  },
+  getServers:       ()         => api.request('GET',  '/api/servers'),
+  getServer:        (id)       => api.request('GET',  `/api/servers/${id}`),
+  createServer:     (data)     => api.request('POST', '/api/servers', data),
+  updateServer:     (id, data) => api.request('PUT',  `/api/servers/${id}`, data),
+  deleteServer:     (id)       => api.request('DELETE',`/api/servers/${id}`),
+  toggleServer:     (id)       => api.request('POST', `/api/servers/${id}/toggle`),
+  checkHealth:      (id)       => api.request('POST', `/api/servers/${id}/health`),
+  getTargets:       ()         => api.request('GET',  '/api/targets'),
+  syncTarget:       (name)     => api.request('POST', `/api/targets/${name}/sync`),
+  syncAll:          ()         => api.request('POST', '/api/sync/all'),
+  getDiff:          ()         => api.request('GET',  '/api/sync/diff'),
+  discoverNpm:      (q)        => api.request('GET',  `/api/discover/npm${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  discoverRunning:  ()         => api.request('GET',  '/api/discover/running'),
+  discoverRegistry: ()         => api.request('GET',  '/api/discover/registry'),
+  importIDE:        (ide)      => api.request('POST', `/api/import/${ide}`),
+  listContent:      (kind)     => api.request('GET',  `/api/${kind}`),
+  readContent:      (kind, p)  => api.request('GET',  `/api/${kind}/file?path=${encodeURIComponent(p)}`),
+  saveContent:      (kind, p, content) => api.request('PUT', `/api/${kind}/file`, { path: p, content }),
+};
+
+/* ═══════════════════════════════════════════════════════════════════
+   TOAST CONTEXT
+══════════════════════════════════════════════════════════════════════ */
+const ToastCtx = createContext(null);
+
+function ToastProvider({ children }) {
+  const [toasts, setToasts] = useState([]);
+  const idRef = useRef(0);
+
+  const addToast = useCallback((type, title, msg, duration = 4000) => {
+    const id = ++idRef.current;
+    setToasts(t => [...t, { id, type, title, msg }]);
+    setTimeout(() => {
+      setToasts(t => t.map(x => x.id === id ? { ...x, leaving: true } : x));
+      setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 250);
+    }, duration);
+  }, []);
+
+  const toast = {
+    success: (title, msg) => addToast('success', title, msg),
+    error:   (title, msg) => addToast('error',   title, msg),
+    info:    (title, msg) => addToast('info',     title, msg),
+    warning: (title, msg) => addToast('warning',  title, msg),
+  };
+
+  const icons = { success: '✅', error: '❌', info: 'ℹ️', warning: '⚠️' };
+
+  return (
+    <ToastCtx.Provider value={toast}>
+      {children}
+      <div className="toast-container">
+        {toasts.map(t => (
+          <div key={t.id} className={`toast ${t.type}${t.leaving ? ' leaving' : ''}`}>
+            <span className="toast-icon">{icons[t.type]}</span>
+            <div className="toast-body">
+              <div className="toast-title">{t.title}</div>
+              {t.msg && <div className="toast-msg">{t.msg}</div>}
+            </div>
+          </div>
+        ))}
+      </div>
+    </ToastCtx.Provider>
+  );
+}
+
+const useToast = () => useContext(ToastCtx);
+
+/* ═══════════════════════════════════════════════════════════════════
+   ROUTER (hash-based)
+══════════════════════════════════════════════════════════════════════ */
+function useRoute() {
+  const [hash, setHash] = useState(window.location.hash || '#/');
+  useEffect(() => {
+    const handler = () => setHash(window.location.hash || '#/');
+    window.addEventListener('hashchange', handler);
+    return () => window.removeEventListener('hashchange', handler);
+  }, []);
+  return hash;
+}
+
+function navigate(to) {
+  window.location.hash = to;
+}
+
+function matchRoute(hash) {
+  const path = hash.replace(/^#/, '') || '/';
+  if (path === '/')                    return { view: 'dashboard', params: {} };
+  if (path === '/add')                 return { view: 'add',       params: {} };
+  if (path === '/targets')             return { view: 'targets',   params: {} };
+  if (path === '/import')              return { view: 'import',    params: {} };
+  if (path === '/discover')            return { view: 'discover',  params: {} };
+  if (path === '/diff')                return { view: 'diff',      params: {} };
+  if (path === '/skills')              return { view: 'skills',    params: {} };
+  if (path === '/memories')            return { view: 'memories',  params: {} };
+  const serverMatch = path.match(/^\/server\/(.+)$/);
+  if (serverMatch)                     return { view: 'server',    params: { id: serverMatch[1] } };
+  return { view: '404', params: {} };
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   SMALL SHARED COMPONENTS
+══════════════════════════════════════════════════════════════════════ */
+function Spinner({ lg = false }) {
+  return <div className={`spinner${lg ? ' spinner-lg' : ''}`} />;
+}
+
+function Loading({ message = 'Loading…' }) {
+  return (
+    <div className="loading-center">
+      <Spinner lg />
+      <span>{message}</span>
+    </div>
+  );
+}
+
+function HealthBadge({ status }) {
+  const s = (status || 'unknown').toLowerCase();
+  const labels = { healthy: 'Healthy', unhealthy: 'Unhealthy', unknown: 'Unknown', checking: 'Checking' };
+  return (
+    <span className={`health-badge ${s}`}>
+      <span className="health-badge-dot" />
+      {labels[s] || 'Unknown'}
+    </span>
+  );
+}
+
+function Tag({ label, variant }) {
+  return <span className={`tag${variant ? ` tag-${variant}` : ''}`}>{label}</span>;
+}
+
+function EmptyState({ icon, title, desc, action }) {
+  return (
+    <div className="empty-state">
+      <div className="empty-icon">{icon || '📭'}</div>
+      <div className="empty-title">{title}</div>
+      {desc && <div className="empty-desc">{desc}</div>}
+      {action}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   DASHBOARD VIEW
+══════════════════════════════════════════════════════════════════════ */
+function DashboardView() {
+  const [servers, setServers]     = useState(null);
+  const [toggling, setToggling]   = useState({});
+  const [checking, setChecking]   = useState({});
+  const toast = useToast();
+
+  useEffect(() => {
+    api.getServers()
+      .then(setServers)
+      .catch(err => { setServers([]); toast.error('Could not load servers', err.message); });
+  }, []);
+
+  const handleToggle = async (e, srv) => {
+    e.stopPropagation();
+    setToggling(t => ({ ...t, [srv.id]: true }));
+    try {
+      await api.toggleServer(srv.id);
+      setServers(s => s.map(x => x.id === srv.id ? { ...x, enabled: !x.enabled } : x));
+      toast.success(`Server ${srv.enabled ? 'disabled' : 'enabled'}`, srv.name);
+    } catch (err) {
+      toast.error('Toggle failed', err.message);
+    } finally {
+      setToggling(t => ({ ...t, [srv.id]: false }));
+    }
+  };
+
+  const handleHealth = async (e, srv) => {
+    e.stopPropagation();
+    setChecking(c => ({ ...c, [srv.id]: true }));
+    setServers(s => s.map(x => x.id === srv.id ? { ...x, health: 'checking' } : x));
+    try {
+      const result = await api.checkHealth(srv.id);
+      const health = result?.healthy ? 'healthy' : 'unhealthy';
+      setServers(s => s.map(x => x.id === srv.id ? { ...x, health } : x));
+    } catch {
+      setServers(s => s.map(x => x.id === srv.id ? { ...x, health: 'unknown' } : x));
+    } finally {
+      setChecking(c => ({ ...c, [srv.id]: false }));
+    }
+  };
+
+  if (!servers) return <Loading message="Loading servers…" />;
+
+  // group by first tag
+  const groups = {};
+  const noTag = [];
+  servers.forEach(srv => {
+    if (srv.tags && srv.tags.length > 0) {
+      const g = srv.tags[0];
+      if (!groups[g]) groups[g] = [];
+      groups[g].push(srv);
+    } else {
+      noTag.push(srv);
+    }
+  });
+  if (noTag.length) groups['untagged'] = noTag;
+
+  const total    = servers.length;
+  const enabled  = servers.filter(s => s.enabled).length;
+  const healthy  = servers.filter(s => s.health === 'healthy').length;
+  const targets  = [...new Set(servers.flatMap(s => s.targets || []))].length;
+
+  return (
+    <div className="page">
+      <div className="page-header">
+        <div>
+          <div className="page-title">Server Dashboard</div>
+          <div className="page-subtitle">{total} servers configured across {targets} targets</div>
+        </div>
+        <div className="page-actions">
+          <button className="btn btn-secondary" onClick={() => navigate('#/diff')}>
+            ⟺ View Diff
+          </button>
+          <button className="btn btn-primary" onClick={() => navigate('#/add')}>
+            + Add Server
+          </button>
+        </div>
+      </div>
+
+      <div className="stats-row">
+        <div className="stat-card">
+          <div className="stat-label">Total Servers</div>
+          <div className="stat-value">{total}</div>
+          <div className="stat-sub">Configured</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Enabled</div>
+          <div className="stat-value" style={{ color: 'var(--green)' }}>{enabled}</div>
+          <div className="stat-sub">{total - enabled} disabled</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Healthy</div>
+          <div className="stat-value" style={{ color: healthy > 0 ? 'var(--green)' : 'var(--text-muted)' }}>{healthy}</div>
+          <div className="stat-sub">Last checked</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Targets</div>
+          <div className="stat-value" style={{ color: 'var(--accent)' }}>{targets}</div>
+          <div className="stat-sub">Unique IDEs</div>
+        </div>
+      </div>
+
+      {Object.entries(groups).map(([group, list]) => (
+        <div key={group} className="group-section">
+          <div className="group-header">
+            <span className="group-label">{group}</span>
+            <span className="group-count">{list.length}</span>
+            <div className="group-divider" />
+          </div>
+          <div className="server-grid">
+            {list.map(srv => (
+              <div
+                key={srv.id}
+                className={`server-card${srv.enabled ? '' : ' disabled'}`}
+                onClick={() => navigate(`#/server/${srv.id}`)}
+              >
+                <div className="server-card-top">
+                  <div>
+                    <div className="server-card-name">{srv.name}</div>
+                    <div className="server-card-transport">
+                      {srv.transport === 'stdio' ? `$ ${srv.command} ${(srv.args || []).slice(0,2).join(' ')}` : srv.url}
+                    </div>
+                  </div>
+                  <HealthBadge status={srv.health} />
+                </div>
+
+                <div className="tag-list">
+                  {(srv.tags || []).map(t => <Tag key={t} label={t} variant={t === 'official' ? 'green' : t === 'custom' ? 'purple' : null} />)}
+                </div>
+
+                <div className="server-card-meta">
+                  <span className="server-card-meta-item">
+                    📡 {srv.transport}
+                  </span>
+                  <span className="server-card-meta-item">
+                    🎯 {(srv.targets || []).length} target{(srv.targets || []).length !== 1 ? 's' : ''}
+                  </span>
+                  {Object.keys(srv.env || {}).length > 0 && (
+                    <span className="server-card-meta-item">
+                      🔑 {Object.keys(srv.env).length} env var{Object.keys(srv.env).length !== 1 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
+
+                <div className="server-card-actions">
+                  <button
+                    className={`btn btn-sm ${srv.enabled ? 'btn-secondary' : 'btn-success'}`}
+                    onClick={(e) => handleToggle(e, srv)}
+                    disabled={toggling[srv.id]}
+                  >
+                    {toggling[srv.id] ? <Spinner /> : (srv.enabled ? '⏸ Disable' : '▶ Enable')}
+                  </button>
+                  <button
+                    className="btn btn-sm btn-ghost"
+                    onClick={(e) => handleHealth(e, srv)}
+                    disabled={checking[srv.id]}
+                  >
+                    {checking[srv.id] ? <Spinner /> : '⚡ Check'}
+                  </button>
+                  <button
+                    className="btn btn-sm btn-ghost"
+                    style={{ marginLeft: 'auto' }}
+                    onClick={(e) => { e.stopPropagation(); navigate(`#/server/${srv.id}`); }}
+                  >
+                    →
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+
+      {servers.length === 0 && (
+        <EmptyState
+          icon="🔌"
+          title="No servers yet"
+          desc="Add your first MCP server to get started."
+          action={<button className="btn btn-primary" onClick={() => navigate('#/add')}>+ Add Server</button>}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   SERVER DETAIL VIEW
+══════════════════════════════════════════════════════════════════════ */
+function ServerDetailView({ id }) {
+  const [server, setServer]   = useState(null);
+  const [editing, setEditing] = useState(false);
+  const [revealed, setRevealed] = useState({});
+  const [saving, setSaving]   = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [form, setForm]       = useState(null);
+  const toast = useToast();
+
+  useEffect(() => {
+    api.getServer(id)
+      .then(s => { setServer(s); setForm(s); })
+      .catch(err => {
+        toast.error('Could not load server', err.message);
+        navigate('#/');
+      });
+  }, [id]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const updated = await api.updateServer(id, form);
+      setServer(updated || form);
+      setEditing(false);
+      toast.success('Server updated', id);
+    } catch (err) {
+      toast.error('Save failed', err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm(`Delete server "${server.name}"? This cannot be undone.`)) return;
+    setDeleting(true);
+    try {
+      await api.deleteServer(id);
+      toast.success('Server deleted', server.name);
+      navigate('#/');
+    } catch (err) {
+      toast.error('Delete failed', err.message);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  if (!server) return <Loading message="Loading server…" />;
+
+  const envEntries = Object.entries(server.env || {});
+
+  const configJson = JSON.stringify({
+    mcpServers: {
+      [server.name]: server.transport === 'http'
+        ? { url: server.url }
+        : { command: server.command, args: server.args || [], env: server.env || {} }
+    }
+  }, null, 2);
+
+  return (
+    <div className="page">
+      <div className="page-header">
+        <div>
+          <div className="page-title">{server.name}</div>
+          <div className="page-subtitle">
+            <HealthBadge status={server.health} />
+          </div>
+        </div>
+        <div className="page-actions">
+          {editing ? (
+            <>
+              <button className="btn btn-ghost" onClick={() => { setEditing(false); setForm({ ...server }); }}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+                {saving ? <><Spinner /> Saving…</> : '💾 Save'}
+              </button>
+            </>
+          ) : (
+            <>
+              <button className="btn btn-danger btn-sm" onClick={handleDelete} disabled={deleting}>
+                {deleting ? <Spinner /> : '🗑 Delete'}
+              </button>
+              <button className="btn btn-secondary" onClick={() => setEditing(true)}>✏️ Edit</button>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+
+        {/* Left column */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+          {/* Basic info */}
+          <div className="card">
+            <div className="card-header"><span className="card-title">Configuration</span></div>
+            <div className="card-body">
+              {editing ? (
+                <div className="form-grid" style={{ gridTemplateColumns: '1fr' }}>
+                  <div className="field">
+                    <label className="field-label">Name</label>
+                    <input className="field-input" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+                  </div>
+                  <div className="field">
+                    <label className="field-label">Transport</label>
+                    <select className="field-select" value={form.transport} onChange={e => setForm(f => ({ ...f, transport: e.target.value }))}>
+                      <option value="stdio">stdio</option>
+                      <option value="http">http</option>
+                    </select>
+                  </div>
+                  {form.transport === 'stdio' ? (
+                    <>
+                      <div className="field">
+                        <label className="field-label">Command</label>
+                        <input className="field-input text-mono" value={form.command || ''} onChange={e => setForm(f => ({ ...f, command: e.target.value }))} />
+                      </div>
+                      <div className="field">
+                        <label className="field-label">Args (one per line)</label>
+                        <textarea className="field-textarea" value={(form.args || []).join('\n')} onChange={e => setForm(f => ({ ...f, args: e.target.value.split('\n').filter(Boolean) }))} />
+                      </div>
+                    </>
+                  ) : (
+                    <div className="field">
+                      <label className="field-label">URL</label>
+                      <input className="field-input text-mono" value={form.url || ''} onChange={e => setForm(f => ({ ...f, url: e.target.value }))} />
+                    </div>
+                  )}
+                  <div className="field">
+                    <label className="field-label">Tags (comma-separated)</label>
+                    <input className="field-input" value={(form.tags || []).join(', ')} onChange={e => setForm(f => ({ ...f, tags: e.target.value.split(',').map(t => t.trim()).filter(Boolean) }))} />
+                  </div>
+                </div>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                  <tbody>
+                    {[
+                      ['Transport', <span className="text-mono">{server.transport}</span>],
+                      server.transport === 'stdio'
+                        ? ['Command', <span className="text-mono">{server.command} {(server.args || []).join(' ')}</span>]
+                        : ['URL', <span className="text-mono">{server.url}</span>],
+                      ['Status', server.enabled ? <span className="text-success fw-600">Enabled</span> : <span className="text-muted">Disabled</span>],
+                      ['Tags', <div className="tag-list">{(server.tags || []).map(t => <Tag key={t} label={t} />)}</div>],
+                      ['Targets', <div className="tag-list">{(server.targets || []).map(t => <Tag key={t} label={t} variant="accent" />)}</div>],
+                    ].map(([k, v], i) => (
+                      <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                        <td style={{ padding: '9px 12px', color: 'var(--text-muted)', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.05em', width: '110px', verticalAlign: 'top', paddingTop: '11px' }}>{k}</td>
+                        <td style={{ padding: '9px 12px' }}>{v}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+
+          {/* Env vars */}
+          <div className="card">
+            <div className="card-header">
+              <span className="card-title">Environment Variables</span>
+              <span className="text-muted" style={{ fontSize: '12px' }}>{envEntries.length} var{envEntries.length !== 1 ? 's' : ''}</span>
+            </div>
+            {envEntries.length === 0 ? (
+              <div style={{ padding: '20px', color: 'var(--text-muted)', fontSize: '13px' }}>No environment variables</div>
+            ) : (
+              <table className="env-table">
+                <thead>
+                  <tr>
+                    <th>Key</th>
+                    <th>Value</th>
+                    <th style={{ width: '70px' }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {envEntries.map(([k, v]) => (
+                    <tr key={k}>
+                      <td><span className="env-key">{k}</span></td>
+                      <td>
+                        <span className={`env-value${revealed[k] ? '' : ' env-masked'}`}>
+                          {revealed[k] ? v : '••••••••••'}
+                        </span>
+                      </td>
+                      <td>
+                        <button
+                          className="btn btn-xs btn-ghost"
+                          onClick={() => setRevealed(r => ({ ...r, [k]: !r[k] }))}
+                        >
+                          {revealed[k] ? '🙈' : '👁'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+
+        {/* Right column – JSON preview */}
+        <div className="card" style={{ alignSelf: 'start' }}>
+          <div className="card-header">
+            <span className="card-title">Config JSON Preview</span>
+            <button className="btn btn-xs btn-ghost" onClick={() => { navigator.clipboard?.writeText(configJson); toast.info('Copied', 'Config JSON copied to clipboard'); }}>
+              📋 Copy
+            </button>
+          </div>
+          <div className="card-body" style={{ padding: 0 }}>
+            <div className="code-block" style={{ borderRadius: 0, border: 'none', margin: 0 }}>
+              {configJson}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   TARGETS VIEW
+══════════════════════════════════════════════════════════════════════ */
+function TargetsView() {
+  const [targets, setTargets] = useState(null);
+  const [syncing, setSyncing] = useState({});
+  const [syncingAll, setSyncingAll] = useState(false);
+  const toast = useToast();
+
+  useEffect(() => {
+    api.getTargets()
+      .then(setTargets)
+      .catch(err => { setTargets([]); toast.error('Could not load targets', err.message); });
+  }, []);
+
+  const handleSync = async (name) => {
+    setSyncing(s => ({ ...s, [name]: true }));
+    try {
+      await api.syncTarget(name);
+      toast.success('Sync complete', `${name} synced successfully`);
+    } catch (err) {
+      toast.error('Sync failed', err.message);
+    } finally {
+      setSyncing(s => ({ ...s, [name]: false }));
+    }
+  };
+
+  const handleSyncAll = async () => {
+    setSyncingAll(true);
+    try {
+      await api.syncAll();
+      toast.success('All targets synced', 'Configuration written to all IDEs');
+    } catch (err) {
+      toast.error('Sync all failed', err.message);
+    } finally {
+      setSyncingAll(false);
+    }
+  };
+
+  if (!targets) return <Loading message="Loading targets…" />;
+
+  return (
+    <div className="page">
+      <div className="page-header">
+        <div>
+          <div className="page-title">Sync Targets</div>
+          <div className="page-subtitle">Manage IDE configuration files</div>
+        </div>
+        <div className="page-actions">
+          <button className="btn btn-secondary" onClick={() => navigate('#/diff')}>⟺ Preview Diff</button>
+          <button className="btn btn-primary" onClick={handleSyncAll} disabled={syncingAll}>
+            {syncingAll ? <><Spinner /> Syncing…</> : '⬆ Sync All'}
+          </button>
+        </div>
+      </div>
+
+      <div className="target-list">
+        {targets.map(t => (
+          <div key={t.name} className="target-item">
+            <div className="target-item-left">
+              <div className="target-icon">{t.icon}</div>
+              <div>
+                <div className="target-name">{t.label}</div>
+                <div className="target-path">{t.path}</div>
+              </div>
+            </div>
+            <div className="target-item-right">
+              <span className={`health-badge ${t.exists ? 'healthy' : 'unknown'}`}>
+                <span className="health-badge-dot" />
+                {t.exists ? 'Config exists' : 'Not found'}
+              </span>
+              <button
+                className="btn btn-sm btn-secondary"
+                onClick={() => handleSync(t.name)}
+                disabled={syncing[t.name]}
+              >
+                {syncing[t.name] ? <><Spinner /> Syncing…</> : '⬆ Sync Now'}
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   ADD SERVER VIEW
+══════════════════════════════════════════════════════════════════════ */
+function AddServerView() {
+  const [form, setForm] = useState({
+    name: '', transport: 'stdio', command: '', args: '', url: '',
+    envRaw: '', tags: '', targets: [],
+  });
+  const [saving, setSaving] = useState(false);
+  const [targetList, setTargetList] = useState([]);
+  const toast = useToast();
+
+  useEffect(() => {
+    api.getTargets().then(setTargetList).catch(err => toast.error('Could not load targets', err.message));
+  }, []);
+
+  const allTargets = targetList.map(t => t.name);
+
+  const toggleTarget = (t) => {
+    setForm(f => ({
+      ...f,
+      targets: f.targets.includes(t) ? f.targets.filter(x => x !== t) : [...f.targets, t],
+    }));
+  };
+
+  const parseEnv = (raw) => {
+    const env = {};
+    raw.split('\n').forEach(line => {
+      const idx = line.indexOf('=');
+      if (idx > 0) {
+        env[line.slice(0, idx).trim()] = line.slice(idx + 1).trim();
+      }
+    });
+    return env;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.name.trim()) { toast.error('Validation', 'Server name is required'); return; }
+    setSaving(true);
+    const payload = {
+      name: form.name.trim(),
+      transport: form.transport,
+      enabled: true,
+      tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
+      targets: form.targets,
+      env: parseEnv(form.envRaw),
+      ...(form.transport === 'stdio'
+        ? { command: form.command.trim(), args: form.args.split('\n').map(a => a.trim()).filter(Boolean) }
+        : { url: form.url.trim() }),
+    };
+    try {
+      await api.createServer(payload);
+      toast.success('Server added', payload.name);
+      navigate('#/');
+    } catch (err) {
+      toast.error('Failed to add server', err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const upd = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
+
+  return (
+    <div className="page">
+      <div className="page-header">
+        <div>
+          <div className="page-title">Add Server</div>
+          <div className="page-subtitle">Register a new MCP server</div>
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit}>
+        <div className="card">
+          <div className="card-header"><span className="card-title">Server Details</span></div>
+          <div className="card-body">
+            <div className="form-grid">
+              <div className="field">
+                <label className="field-label">Name *</label>
+                <input className="field-input" placeholder="e.g. filesystem" value={form.name} onChange={upd('name')} />
+                <span className="field-hint">Unique identifier for this server</span>
+              </div>
+              <div className="field">
+                <label className="field-label">Transport *</label>
+                <select className="field-select" value={form.transport} onChange={upd('transport')}>
+                  <option value="stdio">stdio — spawn subprocess</option>
+                  <option value="http">http — remote endpoint</option>
+                </select>
+              </div>
+
+              {form.transport === 'stdio' ? (
+                <>
+                  <div className="field">
+                    <label className="field-label">Command *</label>
+                    <input className="field-input text-mono" placeholder="e.g. npx" value={form.command} onChange={upd('command')} />
+                  </div>
+                  <div className="field">
+                    <label className="field-label">Arguments</label>
+                    <textarea className="field-textarea" placeholder={"-y\n@modelcontextprotocol/server-filesystem\n/tmp"} value={form.args} onChange={upd('args')} style={{ minHeight: 68 }} />
+                    <span className="field-hint">One argument per line</span>
+                  </div>
+                </>
+              ) : (
+                <div className="field form-full">
+                  <label className="field-label">URL *</label>
+                  <input className="field-input text-mono" placeholder="http://localhost:3333/mcp" value={form.url} onChange={upd('url')} />
+                </div>
+              )}
+
+              <div className="field">
+                <label className="field-label">Tags</label>
+                <input className="field-input" placeholder="official, storage, custom" value={form.tags} onChange={upd('tags')} />
+                <span className="field-hint">Comma-separated</span>
+              </div>
+
+              <div className="field">
+                <label className="field-label">Targets</label>
+                <div className="flex gap-8" style={{ flexWrap: 'wrap', marginTop: 4 }}>
+                  {allTargets.map(t => (
+                    <label key={t} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13 }}>
+                      <input
+                        type="checkbox"
+                        checked={form.targets.includes(t)}
+                        onChange={() => toggleTarget(t)}
+                        style={{ accentColor: 'var(--accent)' }}
+                      />
+                      {t}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="field form-full">
+                <label className="field-label">Environment Variables</label>
+                <textarea
+                  className="field-textarea"
+                  placeholder={"GITHUB_TOKEN=ghp_xxxx\nAPI_KEY=sk_xxxx"}
+                  value={form.envRaw}
+                  onChange={upd('envRaw')}
+                  style={{ minHeight: 90 }}
+                />
+                <span className="field-hint">KEY=VALUE format, one per line. Values are stored securely.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
+          <button type="button" className="btn btn-ghost" onClick={() => navigate('#/')}>Cancel</button>
+          <button type="submit" className="btn btn-primary" disabled={saving}>
+            {saving ? <><Spinner /> Adding…</> : '+ Add Server'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   IMPORT VIEW
+══════════════════════════════════════════════════════════════════════ */
+function ImportView() {
+  const [selected, setSelected] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const [ides, setIdes] = useState([]);
+  const toast = useToast();
+
+  useEffect(() => {
+    api.getTargets().then(setIdes).catch(err => toast.error('Could not load targets', err.message));
+  }, []);
+
+  const handleImport = async () => {
+    if (!selected) { toast.warning('Select an IDE', 'Choose which IDE to import from'); return; }
+    setImporting(true);
+    try {
+      const result = await api.importIDE(selected);
+      const count = result?.imported ?? '?';
+      toast.success('Import complete', `Imported ${count} servers from ${selected}`);
+      navigate('#/');
+    } catch (err) {
+      toast.error('Import failed', err.message);
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  return (
+    <div className="page">
+      <div className="page-header">
+        <div>
+          <div className="page-title">Import from IDE</div>
+          <div className="page-subtitle">Pull existing MCP configuration into MCP Hub</div>
+        </div>
+      </div>
+
+      <div className="card" style={{ maxWidth: 560 }}>
+        <div className="card-header"><span className="card-title">Select Source IDE</span></div>
+        <div className="card-body">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {ides.map(ide => (
+              <label key={ide.name} style={{
+                display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px',
+                border: `1px solid ${selected === ide.name ? 'var(--accent)' : 'var(--border)'}`,
+                borderRadius: 'var(--radius-lg)', cursor: 'pointer',
+                background: selected === ide.name ? 'var(--accent-dim)' : 'var(--bg-elevated)',
+                transition: 'all var(--transition)',
+              }}>
+                <input type="radio" name="ide" value={ide.name} checked={selected === ide.name} onChange={() => setSelected(ide.name)} style={{ accentColor: 'var(--accent)' }} />
+                <span style={{ fontSize: 22 }}>{ide.icon}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>{ide.label}</div>
+                  <div className="text-mono" style={{ color: 'var(--text-muted)', marginTop: 2 }}>{ide.path}</div>
+                </div>
+                <span className={`health-badge ${ide.exists ? 'healthy' : 'unknown'}`}>
+                  <span className="health-badge-dot" />
+                  {ide.exists ? 'Found' : 'Not found'}
+                </span>
+              </label>
+            ))}
+          </div>
+
+          <div style={{ marginTop: 20, padding: '12px 16px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>NOTE</div>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+              Importing will read the selected IDE's config file and register any MCP servers not already tracked by MCP Hub. Existing servers will not be duplicated.
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
+            <button className="btn btn-ghost" onClick={() => navigate('#/')}>Cancel</button>
+            <button className="btn btn-primary" onClick={handleImport} disabled={importing || !selected}>
+              {importing ? <><Spinner /> Importing…</> : '📥 Import'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   DISCOVERY VIEW
+══════════════════════════════════════════════════════════════════════ */
+function DiscoverView() {
+  const [tab, setTab]           = useState('registry');
+  const [registry, setRegistry] = useState(null);
+  const [running, setRunning]   = useState(null);
+  const [npmResults, setNpmResults] = useState(null);
+  const [npmQuery, setNpmQuery] = useState('');
+  const [loading, setLoading]   = useState(false);
+  const [adding, setAdding]     = useState({});
+  const toast = useToast();
+
+  useEffect(() => {
+    if (tab === 'registry' && !registry) {
+      setLoading(true);
+      api.discoverRegistry()
+        .then(setRegistry)
+        .catch(err => { setRegistry([]); toast.error('Registry unavailable', err.message); })
+        .finally(() => setLoading(false));
+    }
+    if (tab === 'running' && !running) {
+      setLoading(true);
+      api.discoverRunning()
+        .then(setRunning)
+        .catch(err => { setRunning([]); toast.error('Process scan failed', err.message); })
+        .finally(() => setLoading(false));
+    }
+  }, [tab]);
+
+  const handleNpmSearch = async (e) => {
+    e.preventDefault();
+    if (!npmQuery.trim()) return;
+    setLoading(true);
+    setNpmResults(null);
+    try {
+      const res = await api.discoverNpm(npmQuery);
+      setNpmResults(res);
+    } catch (err) {
+      setNpmResults([]);
+      toast.error('npm search failed', err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddFromRegistry = async (pkg) => {
+    setAdding(a => ({ ...a, [pkg.name]: true }));
+    const name = pkg.name.split('/').pop().replace(/^server-/, '');
+    try {
+      await api.createServer({
+        name, transport: 'stdio',
+        command: 'npx', args: ['-y', pkg.name],
+        tags: pkg.tags || [], env: {}, targets: [], enabled: true,
+      });
+      toast.success('Server added', `${name} added from registry`);
+    } catch (err) {
+      toast.error('Failed to add', err.message);
+    } finally {
+      setAdding(a => ({ ...a, [pkg.name]: false }));
+    }
+  };
+
+  const cards = tab === 'npm' ? (npmResults || []) : (registry || []);
+
+  return (
+    <div className="page">
+      <div className="page-header">
+        <div>
+          <div className="page-title">Discovery</div>
+          <div className="page-subtitle">Find and add MCP servers from various sources</div>
+        </div>
+      </div>
+
+      <div className="tabs">
+        {[
+          { id: 'registry', label: '⭐ Popular Servers' },
+          { id: 'npm',      label: '📦 Search npm' },
+          { id: 'running',  label: '⚙️ Running Processes' },
+        ].map(t => (
+          <button key={t.id} className={`tab${tab === t.id ? ' active' : ''}`} onClick={() => setTab(t.id)}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'npm' && (
+        <form onSubmit={handleNpmSearch} style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
+          <input
+            className="field-input"
+            placeholder="Search npm for MCP servers…"
+            value={npmQuery}
+            onChange={e => setNpmQuery(e.target.value)}
+            style={{ flex: 1, maxWidth: 480 }}
+          />
+          <button type="submit" className="btn btn-primary" disabled={loading}>
+            {loading ? <><Spinner /> Searching…</> : '🔍 Search'}
+          </button>
+        </form>
+      )}
+
+      {loading && <Loading message="Searching…" />}
+
+      {tab === 'running' && !loading && (
+        <div>
+          <div style={{ marginBottom: 16 }}>
+            <button className="btn btn-secondary btn-sm" onClick={() => { setRunning(null); setTab('running'); }}>
+              🔄 Refresh
+            </button>
+          </div>
+          {running && running.length === 0 && (
+            <EmptyState icon="🔍" title="No MCP processes detected" desc="No running processes matching known MCP server patterns were found." />
+          )}
+          {running && running.length > 0 && (
+            <div className="process-list">
+              {running.map((p, i) => (
+                <div key={i} className="process-item">
+                  <span className="process-pid">PID {p.pid}</span>
+                  <span className="process-cmd">{p.cmd}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 12 }}>
+                    {p.matched && <span className="health-badge healthy"><span className="health-badge-dot" />Tracked</span>}
+                    {!p.matched && (
+                      <button className="btn btn-sm btn-secondary" onClick={() => navigate('#/add')}>+ Import</button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {(tab === 'registry' || tab === 'npm') && !loading && (
+        <div className="discover-grid">
+          {cards.map(pkg => {
+            const desc = pkg.desc || pkg.description || '';
+            const npmUrl = `https://www.npmjs.com/package/${pkg.name}`;
+            return (
+              <div key={pkg.name} className="discover-card">
+                <div className="discover-card-header">
+                  <div className="discover-card-name">{pkg.name.split('/').pop()}</div>
+                  <button
+                    className="btn btn-xs btn-primary"
+                    onClick={() => handleAddFromRegistry(pkg)}
+                    disabled={adding[pkg.name]}
+                  >
+                    {adding[pkg.name] ? <Spinner /> : '+ Add'}
+                  </button>
+                </div>
+                <div className="discover-card-pkg" style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginBottom: 6 }}>
+                  <a href={npmUrl} target="_blank" rel="noopener" style={{ color: 'var(--accent)', textDecoration: 'none' }}>{pkg.name}</a>
+                </div>
+                {desc && <div className="discover-card-desc">{desc}</div>}
+                <div className="tag-list" style={{ marginBottom: 10 }}>
+                  {(pkg.tags || []).map(t => <Tag key={t} label={t} variant={t === 'official' ? 'green' : null} />)}
+                </div>
+                <div className="discover-card-meta">
+                  {pkg.downloads && <span>📦 {pkg.downloads}</span>}
+                  {pkg.stars && <span>⭐ {pkg.stars?.toLocaleString()}</span>}
+                  <a href={npmUrl} target="_blank" rel="noopener" style={{ color: 'var(--accent)', fontSize: 11 }}>npm →</a>
+                </div>
+              </div>
+            );
+          })}
+          {tab === 'npm' && !npmResults && (
+            <div style={{ gridColumn: '1/-1' }}>
+              <EmptyState icon="📦" title="Search npm" desc="Enter a search term above to find MCP servers published to npm." />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   DIFF VIEW
+══════════════════════════════════════════════════════════════════════ */
+function DiffView() {
+  const [diff, setDiff]     = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const toast = useToast();
+
+  useEffect(() => {
+    api.getDiff()
+      .then(setDiff)
+      .catch(err => { setDiff({ targets: [] }); toast.error('Could not compute diff', err.message); })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleSyncAll = async () => {
+    setSyncing(true);
+    try {
+      await api.syncAll();
+      toast.success('All targets synced', 'Configuration written successfully');
+      navigate('#/targets');
+    } catch (err) {
+      toast.error('Sync failed', err.message);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const computeLines = (before, after) => {
+    const bLines = (before || '').split('\n');
+    const aLines = (after  || '').split('\n');
+    return { bLines, aLines };
+  };
+
+  if (loading) return <Loading message="Computing diff…" />;
+
+  const targets = diff?.targets || [];
+  const changed = targets.filter(t => t.hasChanges);
+
+  return (
+    <div className="page" style={{ maxWidth: '100%' }}>
+      <div className="page-header">
+        <div>
+          <div className="page-title">Sync Diff</div>
+          <div className="page-subtitle">
+            {changed.length === 0 ? 'All targets are up to date' : `${changed.length} target${changed.length !== 1 ? 's' : ''} have pending changes`}
+          </div>
+        </div>
+        <div className="page-actions">
+          <button className="btn btn-primary" onClick={handleSyncAll} disabled={syncing || changed.length === 0}>
+            {syncing ? <><Spinner /> Syncing…</> : '⬆ Apply All Changes'}
+          </button>
+        </div>
+      </div>
+
+      {targets.length === 0 && (
+        <EmptyState icon="✅" title="Nothing to sync" desc="All IDE configurations are up to date with your server list." />
+      )}
+
+      {targets.map(target => {
+        const { bLines, aLines } = computeLines(target.before, target.after);
+        return (
+          <div key={target.name} style={{ marginBottom: 28 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+              <span style={{ fontWeight: 600, fontSize: 14 }}>{target.label || target.name}</span>
+              {target.hasChanges
+                ? <span className="health-badge unhealthy"><span className="health-badge-dot" />Changes pending</span>
+                : <span className="health-badge healthy"><span className="health-badge-dot" />Up to date</span>}
+            </div>
+            {target.hasChanges && (
+              <div className="diff-grid">
+                <div className="diff-pane">
+                  <div className="diff-pane-header">
+                    <span>Current</span>
+                    <span style={{ color: 'var(--red)', fontSize: 11 }}>{target.name}</span>
+                  </div>
+                  <div style={{ overflow: 'auto', maxHeight: 320 }}>
+                    {bLines.map((line, i) => {
+                      const isRemoved = !aLines.includes(line) && line.trim() !== '';
+                      return (
+                        <div key={i} className={`diff-line${isRemoved ? ' removed' : ''}`}>
+                          <span className="diff-line-num">{i + 1}</span>
+                          <span className="diff-line-content">{line || ' '}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="diff-pane">
+                  <div className="diff-pane-header">
+                    <span>After Sync</span>
+                    <span style={{ color: 'var(--green)', fontSize: 11 }}>{target.name}</span>
+                  </div>
+                  <div style={{ overflow: 'auto', maxHeight: 320 }}>
+                    {aLines.map((line, i) => {
+                      const isAdded = !bLines.includes(line) && line.trim() !== '';
+                      return (
+                        <div key={i} className={`diff-line${isAdded ? ' added' : ''}`}>
+                          <span className="diff-line-num">{i + 1}</span>
+                          <span className="diff-line-content">{line || ' '}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+            {!target.hasChanges && (
+              <div className="code-block" style={{ maxHeight: 160, overflow: 'auto' }}>
+                {target.after}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   SKILLS / MEMORIES — browse, render and edit markdown in place
+══════════════════════════════════════════════════════════════════════ */
+const CONTENT_KINDS = {
+  skills: {
+    title: 'Skills',
+    subtitle: 'SKILL.md files in ~/.claude/skills and ~/.gemini/skills — edited in place',
+    group: (e) => e.source,
+    label: (e) => e.id,
+  },
+  memories: {
+    title: 'Memories',
+    subtitle: 'Memory files in ~/.claude/projects/*/memory — edited in place',
+    group: (e) => e.project,
+    label: (e) => e.file,
+  },
+};
+
+function renderMarkdown(md) {
+  if (!window.marked) return null; // CDN unavailable → caller falls back to <pre>
+  const html = window.marked.parse(md || '');
+  return window.DOMPurify ? window.DOMPurify.sanitize(html) : null;
+}
+
+function MarkdownBrowserView({ kind }) {
+  const cfg = CONTENT_KINDS[kind];
+  const toast = useToast();
+  const [entries, setEntries] = useState(null);
+  const [filter, setFilter]   = useState('');
+  const [selected, setSelected] = useState(null); // entry
+  const [doc, setDoc]         = useState(null);   // { content, frontmatter, body }
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft]     = useState('');
+  const [saving, setSaving]   = useState(false);
+
+  useEffect(() => {
+    api.listContent(kind)
+      .then(setEntries)
+      .catch(err => { setEntries([]); toast.error(`Could not load ${kind}`, err.message); });
+  }, [kind]);
+
+  const open = async (entry) => {
+    if (editing && draft !== doc?.content) {
+      toast.error('Unsaved changes', 'Save or cancel your edit first');
+      return;
+    }
+    setSelected(entry); setDoc(null); setEditing(false);
+    try {
+      setDoc(await api.readContent(kind, entry.path));
+    } catch (err) {
+      toast.error('Could not open file', err.message);
+    }
+  };
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await api.saveContent(kind, selected.path, draft);
+      setDoc(await api.readContent(kind, selected.path));
+      setEditing(false);
+      toast.success('Saved', selected.path);
+      api.listContent(kind).then(setEntries).catch(() => {});
+    } catch (err) {
+      toast.error('Save failed', err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!entries) return <Loading message={`Loading ${kind}…`} />;
+
+  const q = filter.toLowerCase();
+  const visible = entries.filter(e =>
+    !q || [cfg.label(e), e.name, e.description, cfg.group(e)].join(' ').toLowerCase().includes(q));
+  const groups = [];
+  for (const e of visible) {
+    const g = cfg.group(e);
+    if (!groups.length || groups[groups.length - 1].name !== g) groups.push({ name: g, items: [] });
+    groups[groups.length - 1].items.push(e);
+  }
+
+  const html = doc && !editing ? renderMarkdown(doc.body) : null;
+  const fm = doc && Object.keys(doc.frontmatter || {}).length
+    ? Object.entries(doc.frontmatter).map(([k, v]) => `${k}: ${typeof v === 'string' ? v : JSON.stringify(v)}`).join('\n')
+    : '';
+
+  return (
+    <div className="page">
+      <div className="page-header">
+        <div>
+          <div className="page-title">{cfg.title}</div>
+          <div className="page-subtitle">{cfg.subtitle}</div>
+        </div>
+      </div>
+
+      <div className="md-layout">
+        <div className="card">
+          <div style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>
+            <input className="field-input" placeholder={`Filter ${visible.length} of ${entries.length}…`}
+                   value={filter} onChange={e => setFilter(e.target.value)} style={{ width: '100%' }} />
+          </div>
+          <div className="md-list">
+            {groups.length === 0 && <div className="md-item-desc" style={{ padding: 12 }}>Nothing found.</div>}
+            {groups.map(g => (
+              <React.Fragment key={g.name}>
+                <div className="md-group">{g.name}</div>
+                {g.items.map(e => (
+                  <button key={e.path} className={`md-item${selected?.path === e.path ? ' active' : ''}`} onClick={() => open(e)}>
+                    <div className="md-item-name">
+                      {cfg.label(e)}
+                      {e.isIndex && <Tag label="index" />}
+                      {e.type && <Tag label={e.type} />}
+                    </div>
+                    {e.description && <div className="md-item-desc">{e.description}</div>}
+                  </button>
+                ))}
+              </React.Fragment>
+            ))}
+          </div>
+        </div>
+
+        <div className="card">
+          {!selected ? (
+            <EmptyState icon={kind === 'skills' ? '🧩' : '🧠'} title={`Select a ${kind === 'skills' ? 'skill' : 'memory'}`} desc="Pick a file on the left to read or edit it." />
+          ) : (
+            <>
+              <div className="card-header">
+                <div style={{ minWidth: 0 }}>
+                  <div className="card-title">{selected.name}</div>
+                  <div className="md-path">{selected.path}</div>
+                </div>
+                <div className="page-actions">
+                  {editing ? (
+                    <>
+                      <button className="btn btn-ghost btn-sm" onClick={() => setEditing(false)} disabled={saving}>Cancel</button>
+                      <button className="btn btn-primary btn-sm" onClick={save} disabled={saving || draft === doc.content}>
+                        {saving ? <><Spinner /> Saving…</> : 'Save'}
+                      </button>
+                    </>
+                  ) : (
+                    <button className="btn btn-secondary btn-sm" disabled={!doc} onClick={() => { setDraft(doc.content); setEditing(true); }}>✎ Edit</button>
+                  )}
+                </div>
+              </div>
+              <div className="card-body">
+                {!doc ? <Loading message="Opening…" /> : editing ? (
+                  <textarea className="field-textarea md-editor" value={draft} onChange={e => setDraft(e.target.value)} spellCheck={false} />
+                ) : (
+                  <>
+                    {fm && <div className="md-frontmatter">{fm}</div>}
+                    {html != null
+                      ? <div className="markdown" dangerouslySetInnerHTML={{ __html: html }} />
+                      : <pre className="code-block" style={{ whiteSpace: 'pre-wrap' }}>{doc.body}</pre>}
+                  </>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   SIDEBAR
+══════════════════════════════════════════════════════════════════════ */
+const NAV = [
+  { id: 'dashboard', label: 'Dashboard',   icon: '⊞', hash: '#/' },
+  { id: 'targets',   label: 'Targets',     icon: '🎯', hash: '#/targets' },
+  { id: 'diff',      label: 'Diff View',   icon: '⟺', hash: '#/diff' },
+  null, // separator
+  { id: 'skills',    label: 'Skills',      icon: '🧩', hash: '#/skills' },
+  { id: 'memories',  label: 'Memories',    icon: '🧠', hash: '#/memories' },
+  null, // separator
+  { id: 'add',       label: 'Add Server',  icon: '+', hash: '#/add' },
+  { id: 'import',    label: 'Import',      icon: '📥', hash: '#/import' },
+  { id: 'discover',  label: 'Discovery',   icon: '🔍', hash: '#/discover' },
+];
+
+function Sidebar({ currentView }) {
+  return (
+    <aside className="sidebar">
+      <div className="sidebar-brand">
+        <div className="brand-icon">⚡</div>
+        <div>
+          <div className="brand-name">MCP Hub</div>
+          <div className="brand-version">v1.0</div>
+        </div>
+      </div>
+      <nav className="sidebar-nav">
+        <div className="nav-section-label">Navigation</div>
+        {NAV.map((item, i) => {
+          if (!item) return <div key={i} style={{ height: 1, background: 'var(--border)', margin: '6px 8px' }} />;
+          return (
+            <button
+              key={item.id}
+              className={`nav-item${currentView === item.id ? ' active' : ''}`}
+              onClick={() => navigate(item.hash)}
+            >
+              <span className="nav-item-icon">{item.icon}</span>
+              <span className="nav-item-label">{item.label}</span>
+            </button>
+          );
+        })}
+      </nav>
+      <div className="sidebar-footer">
+        <div className="sidebar-status">
+          <div className="status-dot" />
+          Hub running
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   HEADER
+══════════════════════════════════════════════════════════════════════ */
+const BREADCRUMBS = {
+  dashboard: [{ label: 'Dashboard' }],
+  server:    [{ label: 'Dashboard', hash: '#/' }, { label: 'Server Detail' }],
+  targets:   [{ label: 'Targets' }],
+  add:       [{ label: 'Dashboard', hash: '#/' }, { label: 'Add Server' }],
+  import:    [{ label: 'Dashboard', hash: '#/' }, { label: 'Import' }],
+  discover:  [{ label: 'Discovery' }],
+  diff:      [{ label: 'Diff View' }],
+  skills:    [{ label: 'Skills' }],
+  memories:  [{ label: 'Memories' }],
+  '404':     [{ label: '404' }],
+};
+
+function Header({ view, params }) {
+  const crumbs = BREADCRUMBS[view] || [{ label: view }];
+  return (
+    <header className="header">
+      <div className="header-left">
+        <div className="breadcrumb">
+          {crumbs.map((c, i) => (
+            <React.Fragment key={i}>
+              {i > 0 && <span className="breadcrumb-sep">/</span>}
+              {c.hash
+                ? <a href={c.hash} style={{ color: 'var(--text-secondary)' }}>{c.label}</a>
+                : <span className={i === crumbs.length - 1 ? 'breadcrumb-current' : ''}>{c.label}</span>}
+            </React.Fragment>
+          ))}
+          {view === 'server' && params.id && (
+            <><span className="breadcrumb-sep">/</span><span className="breadcrumb-current">{params.id}</span></>
+          )}
+        </div>
+      </div>
+      <div className="header-actions">
+        <button className="btn btn-ghost btn-sm" onClick={() => navigate('#/discover')} title="Discover servers">
+          🔍
+        </button>
+        <button className="btn btn-secondary btn-sm" onClick={() => navigate('#/add')}>
+          + Add Server
+        </button>
+      </div>
+    </header>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   ROOT APP
+══════════════════════════════════════════════════════════════════════ */
+function App() {
+  const hash = useRoute();
+  const { view, params } = matchRoute(hash);
+
+  const renderView = () => {
+    switch (view) {
+      case 'dashboard': return <DashboardView />;
+      case 'server':    return <ServerDetailView id={params.id} />;
+      case 'targets':   return <TargetsView />;
+      case 'add':       return <AddServerView />;
+      case 'import':    return <ImportView />;
+      case 'discover':  return <DiscoverView />;
+      case 'diff':      return <DiffView />;
+      case 'skills':    return <MarkdownBrowserView key="skills" kind="skills" />;
+      case 'memories':  return <MarkdownBrowserView key="memories" kind="memories" />;
+      default:
+        return (
+          <div className="page">
+            <EmptyState icon="🔭" title="Page not found" desc="The route you requested doesn't exist." action={<button className="btn btn-primary" onClick={() => navigate('#/')}>← Back to Dashboard</button>} />
+          </div>
+        );
+    }
+  };
+
+  return (
+    <ToastProvider>
+      <div className="app-shell">
+        <Sidebar currentView={view} />
+        <Header view={view} params={params} />
+        <main className="main">
+          {renderView()}
+        </main>
+      </div>
+    </ToastProvider>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+</script>
+</body>
+</html>

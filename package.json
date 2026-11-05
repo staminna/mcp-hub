@@ -1,0 +1,33 @@
+{
+  "name": "mcp-hub",
+  "version": "1.0.0",
+  "description": "Central MCP Server Manager — single source of truth for all IDE MCP configs",
+  "type": "module",
+  "bin": {
+    "mcp-hub": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc && mkdir -p dist/web && cp src/web/index.html dist/web/index.html",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "express": "^4.21.0",
+    "inquirer": "^9.3.0",
+    "node-ssh": "^13.2.0",
+    "ora": "^8.1.0",
+    "table": "^6.8.2",
+    "yaml": "^2.5.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}
