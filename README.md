@@ -28,6 +28,22 @@ and moves any tokens it finds into `.env`.
 | `memories list [--project p] \| show <file>` | `~/.claude/projects/*/memory` |
 | `serve [--port 3847]` | Web dashboard at http://localhost:3847 |
 
+## Dashboard
+
+```bash
+npm run build              # builds the CLI and the dashboard (web/ → dist/web)
+npm run dev -- serve       # http://localhost:3847
+```
+
+For working on the dashboard itself, run `npm run dev -- serve` in one terminal and
+`npm run dev:web` in another, then open http://localhost:5173 (hot reload; `/api` is
+proxied to the hub). It's a Vite + React + TypeScript app in `web/` that shares
+`src/types.ts` with the backend; `npm run typecheck:web` checks it.
+
+Pages: **Servers** (which server goes to which editor, health, on/off), **Changes**
+(what a sync would do, field names only), **Editors** (sync, with a confirm step),
+**Skills** and **Memories** (read and edit in place), **Import** and **Find servers**.
+
 ## Targets
 
 `claude-code` (`~/.claude.json`, the file Claude Code reads), `claude-mcp`

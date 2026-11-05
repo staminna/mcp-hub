@@ -11,16 +11,11 @@ import { skillsRouter, memoriesRouter } from "./api/content.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// Resolve web dashboard path — works from both src/ (tsx) and dist/ (compiled)
-function findDashboard(): string {
-  const candidates = [
-    join(__dirname, "..", "web", "index.html"),        // from src/server/
-    join(__dirname, "..", "..", "src", "web", "index.html"), // from dist/server/
-  ];
-  return candidates.find((p) => existsSync(p)) ?? candidates[0];
-}
-
-const dashboardPath = findDashboard();
+// The built dashboard (web/ → dist/web). Works from src/server (tsx) and dist/server.
+const webDir = [
+  join(__dirname, "..", "..", "dist", "web"), // from src/server/
+  join(__dirname, "..", "web"), // from dist/server/
+].find((d) => existsSync(join(d, "index.html")));
 
 export function createServer(): express.Express {
   const app = express();
@@ -48,13 +43,18 @@ export function createServer(): express.Express {
   });
 
   // Serve dashboard
-  app.get("/", (_req, res) => {
-    res.sendFile(dashboardPath);
-  });
-
-  app.get("/dashboard", (_req, res) => {
-    res.sendFile(dashboardPath);
-  });
+  if (webDir) {
+    app.use(express.static(webDir));
+  } else {
+    app.get("/", (_req, res) => {
+      res
+        .type("html")
+        .send(
+          "<p style='font-family:system-ui'>The dashboard isn't built yet. Run <code>npm run build</code>, " +
+            "or <code>npm run dev:web</code> and open http://localhost:5173.</p>"
+        );
+    });
+  }
 
   return app;
 }

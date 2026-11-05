@@ -59,7 +59,18 @@ router.put("/:id", async (req, res) => {
   const existing = findServer(config, req.params.id);
   if (!existing) return res.status(404).json({ error: "Not found" });
 
-  const updated = { ...existing, ...req.body, id: req.params.id };
+  // Replace, not merge: a field left out of the body is removed (e.g. a cleared cwd)
+  const body = req.body as Partial<McpServer>;
+  if (!body.name) return res.status(400).json({ error: "name required" });
+  const updated: McpServer = {
+    tags: [],
+    disabled: false,
+    targets: "*",
+    transport: "stdio",
+    ...body,
+    name: body.name,
+    id: req.params.id,
+  };
   const newConfig = addServer(config, updated);
   await saveConfig(newConfig);
   res.json(updated);
