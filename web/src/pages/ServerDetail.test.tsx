@@ -12,7 +12,7 @@ describe("ServerDetail", () => {
     expect(screen.getByText("URL")).toBeTruthy();
     expect(screen.getByText("Every editor:")).toBeTruthy();
     expect(screen.getByText("${REMOTE_TOKEN}")).toBeTruthy();
-    expect(screen.getByText("(filled in from .env at sync)")).toBeTruthy();
+    expect(screen.getByText(/filled in from .env at sync/)).toBeTruthy();
     expect(screen.getByText("fast")).toBeTruthy();
     expect(screen.getByText("None")).toBeTruthy(); // no tags
     await user.click(screen.getByText("Copy"));

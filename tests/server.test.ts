@@ -112,13 +112,25 @@ describe("targets and sync API", () => {
     expect(r.json).toHaveLength(9);
   });
 
-  it("diffs every target, overlaying hub servers on what's there", async () => {
-    write(getAdapter("cursor").configPath, { mcpServers: { theirs: { command: "t" } } });
-    const d = (await api("GET", "/api/sync/diff")).json.targets;
-    const c = d.find((t: any) => t.name === "cursor");
-    expect(c.hasChanges).toBe(true);
-    expect(Object.keys(JSON.parse(c.after).mcpServers)).toEqual(["theirs", "alpha"]);
-    expect(d.find((t: any) => t.name === "vscode").hasChanges).toBe(false);
+  it("diffs every target with ids and field names, never values", async () => {
+    write(HUB_ENV_PATH, "ALPHA_TOKEN=sentinel-token-value-123\n");
+    await saveConfig(config([
+      server({ id: "alpha", env: { T: "${ALPHA_TOKEN}" }, targets: ["cursor"] }),
+      server({ id: "fresh", targets: ["cursor"] }),
+    ]));
+    write(getAdapter("cursor").configPath, { mcpServers: {
+      alpha: { command: "node", args: ["server.js"], env: { T: "old-real-token-456" } },
+      theirs: { command: "t" },
+    } });
+    const r = await api("GET", "/api/sync/diff");
+    expect(r.text).not.toContain("sentinel-token-value-123");
+    expect(r.text).not.toContain("old-real-token-456");
+    const c = r.json.targets.find((t: any) => t.name === "cursor");
+    expect(c).toEqual({
+      name: "cursor", label: "Cursor", hasChanges: true,
+      servers: [{ id: "alpha", action: "update", fields: ["env.T"] }, { id: "fresh", action: "add", fields: [] }],
+    });
+    expect(r.json.targets.find((t: any) => t.name === "vscode")).toMatchObject({ hasChanges: false, servers: [] });
   });
 
   it("reports an unreadable editor config in the diff instead of diffing against {}", async () => {
@@ -199,6 +211,50 @@ describe("skills and memories API", () => {
   });
 });
 
+describe("localhost-only guard", () => {
+  const raw = (path: string, method: string, headers: Record<string, string>) =>
+    new Promise<number>((resolve, reject) => {
+      // fetch won't let us set Host, so use http directly
+      import("http").then(({ request }) => {
+        const req = request(base + path, { method, headers }, (res) => { res.resume(); resolve(res.statusCode!); });
+        req.on("error", reject);
+        req.end();
+      });
+    });
+
+  it("rejects requests for another host name (DNS rebinding)", async () => {
+    expect(await raw("/api/servers", "GET", { Host: "evil.example" })).toBe(403);
+    expect(await raw("/api/servers", "GET", { Host: "localhost:3847" })).toBe(200);
+    expect(await raw("/api/servers", "GET", { Host: "[::1]:3847" })).toBe(200);
+  });
+
+  it("rejects writes from other sites, allows the dashboard, the dev proxy and the CLI", async () => {
+    const before = (await loadConfig()).servers.map((s) => s.disabled);
+    expect(await raw("/api/servers/alpha/toggle", "POST", { Host: "127.0.0.1", Origin: "https://evil.example" })).toBe(403);
+    expect(await raw("/api/servers/alpha/toggle", "POST", { Host: "127.0.0.1", "Sec-Fetch-Site": "cross-site" })).toBe(403);
+    expect(await raw("/api/servers/alpha/toggle", "POST", { Host: "127.0.0.1", Origin: "not a url" })).toBe(403);
+    expect((await loadConfig()).servers.map((s) => s.disabled)).toEqual(before);
+    expect(await raw("/api/servers/alpha/toggle", "POST", { Host: "localhost:3847", Origin: "http://localhost:3847", "Sec-Fetch-Site": "same-origin" })).toBe(200);
+    expect(await raw("/api/servers/alpha/toggle", "POST", { Host: "localhost:3847", Origin: "http://localhost:5173" })).toBe(200);
+    expect(await raw("/api/servers/alpha/toggle", "POST", { Host: "127.0.0.1" })).toBe(200);
+    // Reading from another origin's page is still blocked by the browser (no CORS headers); GETs aren't Origin-checked
+    expect(await raw("/api/servers", "GET", { Host: "127.0.0.1", Origin: "https://evil.example" })).toBe(200);
+  });
+
+  it("accepts an extra host chosen with --host", async () => {
+    const s2 = createServer({ hosts: ["Mybox.lan"] }).listen(0);
+    await new Promise((r) => s2.once("listening", r));
+    const a = s2.address();
+    const port = typeof a === "object" && a ? a.port : 0;
+    const { request } = await import("http");
+    const code = await new Promise<number>((resolve) => {
+      request(`http://127.0.0.1:${port}/api/servers`, { headers: { Host: `mybox.lan:${port}` } }, (res) => { res.resume(); resolve(res.statusCode!); }).end();
+    });
+    expect(code).toBe(200);
+    s2.close();
+  });
+});
+
 describe("dashboard", () => {
   it("serves the built dashboard when it exists", async () => {
     const r = await api("GET", "/");
@@ -220,5 +276,57 @@ describe("dashboard", () => {
     expect(await res.text()).toMatch(/npm run build/);
     s2.close();
     vi.doUnmock("fs");
+  });
+});
+
+describe("secrets API (write-only .env)", () => {
+  beforeEach(async () => {
+    write(HUB_ENV_PATH, "# my tokens\nALPHA_TOKEN=sentinel-secret-789\nUNUSED=zzz-unused-value\n");
+    await saveConfig(config([
+      server({ id: "alpha", env: { T: "${ALPHA_TOKEN}" }, args: ["--key=${MISSING_KEY}"] }),
+      server({ id: "beta", env: { T: "${ALPHA_TOKEN}", H: "${HOME}" } }),
+    ]));
+  });
+
+  it("lists names, where each comes from and who uses it, never values", async () => {
+    const r = await api("GET", "/api/secrets");
+    expect(r.text).not.toContain("sentinel-secret-789");
+    expect(r.text).not.toContain("zzz-unused-value");
+    expect(r.json).toEqual([
+      { name: "ALPHA_TOKEN", source: "env-file", usedBy: ["alpha", "beta"] },
+      { name: "HOME", source: "environment", usedBy: ["beta"] },
+      { name: "MISSING_KEY", source: "missing", usedBy: ["alpha"] },
+      { name: "UNUSED", source: "env-file", usedBy: [] },
+    ]);
+  });
+
+  it("sets and replaces values in .env, keeping comments; the response has no value", async () => {
+    const r = await api("PUT", "/api/secrets/MISSING_KEY", { value: "  new-value  " });
+    expect(r.json).toEqual({ name: "MISSING_KEY", source: "env-file" });
+    await api("PUT", "/api/secrets/ALPHA_TOKEN", { value: "rotated" });
+    expect(read(HUB_ENV_PATH)).toBe("# my tokens\nALPHA_TOKEN=rotated\nUNUSED=zzz-unused-value\nMISSING_KEY=new-value\n");
+  });
+
+  it("validates names and values", async () => {
+    expect((await api("PUT", "/api/secrets/1BAD", { value: "x" })).json.error).toMatch(/letters, digits/);
+    expect((await api("PUT", "/api/secrets/OK", { value: "  " })).json.error).toBe("Enter a value");
+    expect((await api("PUT", "/api/secrets/OK", {})).status).toBe(400);
+    expect((await api("PUT", "/api/secrets/OK", { value: "a\nB=injected" })).json.error).toMatch(/line breaks/);
+    expect((await fetch(base + "/api/secrets/OK", { method: "PUT" })).status).toBe(400);
+    expect(read(HUB_ENV_PATH)).not.toMatch(/injected|OK=/);
+  });
+
+  it("removes a key, or 404s if it isn't in .env", async () => {
+    expect((await api("DELETE", "/api/secrets/UNUSED")).status).toBe(204);
+    expect(read(HUB_ENV_PATH)).not.toMatch(/UNUSED/);
+    expect((await api("DELETE", "/api/secrets/UNUSED")).status).toBe(404);
+  });
+
+  it("can't be changed from another site", async () => {
+    const res = await fetch(base + "/api/secrets/ALPHA_TOKEN", {
+      method: "PUT", headers: { "Content-Type": "application/json", Origin: "https://evil.example" }, body: JSON.stringify({ value: "pwned" }),
+    });
+    expect(res.status).toBe(403);
+    expect(read(HUB_ENV_PATH)).toMatch(/ALPHA_TOKEN=sentinel-secret-789/);
   });
 });

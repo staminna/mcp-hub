@@ -2,27 +2,7 @@ import { api, type TargetDiff } from "../api.ts";
 import { useApi } from "../useApi.ts";
 import { Empty, Loading, PageHeader } from "../components/ui.tsx";
 
-type Row = { id: string; action: "add" | "update" | "unchanged" | "unmanaged"; fields: string[] };
-
-/** Compare before/after per server. Only field names are shown, never values (they may hold tokens). */
-function rows(t: TargetDiff): Row[] {
-  const parse = (s: string): Record<string, Record<string, unknown>> => {
-    try { return JSON.parse(s).mcpServers ?? {}; } catch { return {}; }
-  };
-  const before = parse(t.before);
-  const after = parse(t.after);
-  return Object.keys(after).sort().map((id) => {
-    const b = before[id];
-    const a = after[id];
-    if (!b) return { id, action: "add", fields: [] };
-    const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
-    const fields = [...keys].filter((k) => JSON.stringify(a[k]) !== JSON.stringify(b[k]));
-    if (fields.length) return { id, action: "update", fields };
-    return { id, action: JSON.stringify(a) === JSON.stringify(b) ? "unchanged" : "update", fields };
-  });
-}
-
-const LABEL = { add: "Will be added", update: "Will be updated", unchanged: "In sync", unmanaged: "Not in hub, kept" };
+const LABEL = { add: "Will be added", update: "Will be updated" };
 
 export function Diff() {
   const diff = useApi(api.diff, "Couldn't compute the changes");
@@ -41,8 +21,7 @@ export function Diff() {
         actions={<a className="btn btn-primary" href="#/targets">Go to sync</a>}
       />
       {targets.map((t) => {
-        const all = rows(t);
-        const changed = all.filter((r) => r.action === "add" || r.action === "update");
+        const changed = t.servers;
         return (
           <section key={t.name} className="diff-target">
             <h2>

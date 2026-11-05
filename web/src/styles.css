@@ -206,6 +206,10 @@ tr.off .jack.on { background: transparent; border-color: var(--amber); box-shado
 .target-icon { font-size: 18px; width: 24px; text-align: center; }
 .target-name { font-weight: 600; }
 .choices { display: grid; gap: 8px; }
+.secret { align-items: flex-start; }
+.secret .target-main { display: grid; gap: 6px; }
+.secret-form { flex-wrap: nowrap; max-width: 560px; margin: 4px 0 8px; }
+.secret-form input { flex: 1; }
 .choice { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); cursor: pointer; }
 .choice.selected { border-color: var(--amber); background: var(--amber-soft); }
 .choice.muted { cursor: default; opacity: 0.55; }

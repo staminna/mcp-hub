@@ -17,30 +17,27 @@ describe("Diff (Changes)", () => {
     expect(screen.queryByText(/uvx/)).toBeNull(); // values never shown
   });
 
-  it("counts one change in the singular, and tolerates bad JSON", async () => {
+  it("counts one change in the singular, and an update with no named fields", async () => {
     installFakeApi({
       diff: [
-        { name: "cursor", label: "Cursor", hasChanges: true, before: "not json", after: JSON.stringify({ mcpServers: { a: {} } }) },
-        { name: "vscode", label: "VS Code", hasChanges: true, before: "{}", after: "{}" },
-        // same keys, same values, different key order: counted as an update with no fields
-        { name: "gemini", label: "Gemini", hasChanges: true, before: JSON.stringify({ mcpServers: { o: { a: 1, b: 2 } } }), after: JSON.stringify({ mcpServers: { o: { b: 2, a: 1 } } }) },
+        { name: "cursor", label: "Cursor", hasChanges: true, servers: [{ id: "a", action: "add", fields: [] }] },
+        { name: "gemini", label: "Gemini", hasChanges: true, servers: [{ id: "o", action: "update", fields: [] }] },
       ],
     });
     renderWithToasts(<Diff />);
     expect(await screen.findAllByText("1 change")).toHaveLength(2);
-    expect(screen.getAllByText("0 changes")).toHaveLength(1);
     expect(screen.getByText("Will be updated")).toBeTruthy();
   });
 
   it("flags an editor whose config can't be read", async () => {
-    installFakeApi({ diff: [{ name: "docker", label: "Docker MCP", hasChanges: false, before: "", after: "", error: "config.yaml has no server list" }] });
+    installFakeApi({ diff: [{ name: "docker", label: "Docker MCP", hasChanges: false, servers: [], error: "config.yaml has no server list" }] });
     renderWithToasts(<Diff />);
     expect(await screen.findByText("Can't read")).toBeTruthy();
     expect(screen.getByText(/config.yaml has no server list\. Sync leaves this file alone/)).toBeTruthy();
   });
 
   it("says everything matches when nothing would change", async () => {
-    installFakeApi({ diff: [{ name: "cursor", label: "Cursor", hasChanges: false, before: "{}", after: "{}" }] });
+    installFakeApi({ diff: [{ name: "cursor", label: "Cursor", hasChanges: false, servers: [] }] });
     renderWithToasts(<Diff />);
     expect(await screen.findByText("Every editor config matches the hub.")).toBeTruthy();
   });

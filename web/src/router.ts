@@ -10,6 +10,7 @@ export type Route =
   | { view: "discover" }
   | { view: "skills" }
   | { view: "memories" }
+  | { view: "secrets" }
   | { view: "404" };
 
 export function matchRoute(hash: string): Route {
@@ -17,7 +18,7 @@ export function matchRoute(hash: string): Route {
   if (path === "/") return { view: "dashboard" };
   const server = path.match(/^\/server\/(.+)$/);
   if (server) return { view: "server", id: decodeURIComponent(server[1]) };
-  const simple = ["add", "targets", "diff", "import", "discover", "skills", "memories"] as const;
+  const simple = ["add", "targets", "diff", "import", "discover", "skills", "memories", "secrets"] as const;
   const hit = simple.find((v) => path === `/${v}`);
   return hit ? { view: hit } : { view: "404" };
 }

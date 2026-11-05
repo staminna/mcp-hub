@@ -7,12 +7,14 @@ import { Diff } from "./pages/Diff.tsx";
 import { Import } from "./pages/Import.tsx";
 import { Discover } from "./pages/Discover.tsx";
 import { MarkdownBrowser } from "./pages/MarkdownBrowser.tsx";
+import { Secrets } from "./pages/Secrets.tsx";
 import { Empty } from "./components/ui.tsx";
 
 const NAV: ({ view: Route["view"]; label: string; hash: string; also?: Route["view"][] } | null)[] = [
   { view: "dashboard", label: "Servers", hash: "#/", also: ["server", "add"] },
   { view: "diff", label: "Changes", hash: "#/diff" },
   { view: "targets", label: "Editors", hash: "#/targets" },
+  { view: "secrets", label: "Secrets", hash: "#/secrets" },
   null,
   { view: "skills", label: "Skills", hash: "#/skills" },
   { view: "memories", label: "Memories", hash: "#/memories" },
@@ -32,6 +34,7 @@ function Page({ route }: { route: Route }) {
     case "discover": return <Discover />;
     case "skills": return <MarkdownBrowser key="skills" kind="skills" />;
     case "memories": return <MarkdownBrowser key="memories" kind="memories" />;
+    case "secrets": return <Secrets />;
     default:
       return <div className="page"><Empty title="There's no page here" action={<a className="btn btn-ghost" href="#/">Go to servers</a>} /></div>;
   }

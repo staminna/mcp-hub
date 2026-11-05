@@ -5,6 +5,7 @@ import {
   type SyncResult,
 } from "../types.js";
 import { getAdapter, getTargetNames } from "../targets/registry.js";
+import { sameServer } from "../targets/base.js";
 import { createBackup } from "./backup.js";
 import { computeDiff } from "./diff.js";
 import { loadEnvFile } from "../secrets/env-file.js";
@@ -64,7 +65,7 @@ export async function syncTarget(
   }
   // A skipped server still in the IDE config isn't "unmanaged" — it's held back
   diff = diff.filter(
-    (d) => !(d.action === "unmanaged" && skipped.some((s) => s.id === d.serverId))
+    (d) => !(d.action === "unmanaged" && skipped.some((s) => sameServer(d.serverId, s.id)))
   );
   const ids = (action: string) => diff.filter((d) => d.action === action).map((d) => d.serverId);
   result.added = ids("add");

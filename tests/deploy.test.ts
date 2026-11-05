@@ -26,7 +26,7 @@ vi.mock("node-ssh", () => ({
         return f === undefined ? { code: 1, stdout: "", stderr: "No such file" } : { code: 0, stdout: f, stderr: "" };
       }
       if (remote.failWrite) return { code: 1, stdout: "", stderr: remote.failWrite === true ? "disk full" : "" };
-      const target = cmd.match(/mv '[^']+' '([^']+)'$/)![1];
+      const target = cmd.match(/mv '(?:[^']|'\\'')+' '((?:[^']|'\\'')+)'$/)![1].replace(/'\\''/g, "'");
       remote.files.set(target, opts.stdin ?? "");
       return { code: 0, stdout: "", stderr: "" };
     }
@@ -100,7 +100,8 @@ describe("deployViaSSH", () => {
     const msg = await deployViaSSH(config([server()]), "cursor", "box", { username: "root" });
     expect(msg).toBe("Deployed 1 servers to box:/root/.cursor/mcp.json");
     expect(JSON.parse(remote.files.get("/root/.cursor/mcp.json")!).mcpServers.s1.command).toBe("node");
-    expect(remote.commands[1]).toMatch(/^mkdir -p '\/root\/.cursor' && cat > /);
+    expect(remote.commands[1]).toMatch(/^umask 077 && mkdir -p '\/root\/.cursor' && cat > /);
+    expect(remote.commands[1]).toContain(`chmod "$(stat -c %a '/root/.cursor/mcp.json' 2>/dev/null || stat -f %Lp '/root/.cursor/mcp.json')"`);
   });
 
   it("defaults the user from $USER, then root", async () => {
@@ -151,17 +152,18 @@ describe("deployToK8s", () => {
     expect(call.cmd).toBe("kubectl");
     expect(call.args).toEqual(["--context", "prod", "apply", "-f", "-"]);
     const m = parse(call.input);
-    expect(m).toMatchObject({ kind: "ConfigMap", metadata: { name: "mcp", namespace: "ai" } });
-    const cfg = JSON.parse(m.data["mcp-config"]);
+    expect(m).toMatchObject({ kind: "Secret", type: "Opaque", metadata: { name: "mcp", namespace: "ai" } });
+    expect(m.data).toBeUndefined();
+    const cfg = JSON.parse(m.stringData["mcp-config"]);
     expect(Object.keys(cfg.mcpServers)).toEqual(["plain", "secret"]);
     expect(cfg.mcpServers.secret.env.TOKEN).toBe("real-value");
-    expect(msg).toBe("Deployed 2 servers to k8s ConfigMap ai/mcp (skipped, missing in .env: missing): configmap/x configured");
+    expect(msg).toBe("Deployed 2 servers to k8s Secret ai/mcp (skipped, missing in .env: missing): configmap/x configured");
   });
 
   it("uses default namespace and name", async () => {
     const msg = await deployToK8s(config([server()]), "cursor");
     expect(kube.calls[0].args).toEqual(["apply", "-f", "-"]);
-    expect(msg).toBe("Deployed 1 servers to k8s ConfigMap default/mcp-config: configmap/x configured");
+    expect(msg).toBe("Deployed 1 servers to k8s Secret default/mcp-config: configmap/x configured");
   });
 
   it("reports kubectl errors", async () => {

@@ -17,7 +17,7 @@ describe("serve", () => {
   });
 
   it("explains a busy port instead of crashing", async () => {
-    const busy = createServer().listen(0);
+    const busy = createServer().listen(0, "127.0.0.1");
     await new Promise((r) => busy.once("listening", r));
     const errors: string[] = [];
     const orig = console.error;

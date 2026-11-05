@@ -42,7 +42,11 @@ proxied to the hub). It's a Vite + React + TypeScript app in `web/` that shares
 
 Pages: **Servers** (which server goes to which editor, health, on/off), **Changes**
 (what a sync would do, field names only), **Editors** (sync, with a confirm step),
+**Secrets** (set, replace or remove the tokens in `.env` without editing the file),
 **Skills** and **Memories** (read and edit in place), **Import** and **Find servers**.
+
+The dashboard listens on `127.0.0.1` only (`--host` to change that, with a warning),
+rejects requests for other host names, and refuses changes coming from other websites.
 
 ## Targets
 
@@ -66,19 +70,24 @@ Pages: **Servers** (which server goes to which editor, health, on/off), **Change
   and a file that can't be parsed is never written. Docker's own per-server
   `config.yaml` (no server list) is left alone.
 - `deploy` (SSH or Kubernetes) merges the same way, fills in `${VAR}` values, and skips
-  servers with missing vars.
+  servers with missing vars. Kubernetes gets a **Secret** (not a ConfigMap), sent to
+  `kubectl` on stdin; mount it with `volumes[].secret.secretName`.
+- **Tokens stay private.** New editor configs, `.env` and backups are created `0600`
+  (folders `0700`); existing files keep their permissions; symlinks are written through.
+  Secrets are write-only in the dashboard: names and status go out, values never do, and
+  the Changes page gets field names only.
 - Skills/memories: only existing `.md` files inside those folders can be edited.
 
 ## Tests
 
 ```bash
-npm test                # 275 tests (backend + dashboard)
+npm test                # 301 tests (backend + dashboard)
 npm run test:coverage   # same, with coverage; fails below 95% on any metric
 ```
 
 | Statements | Branches | Functions | Lines |
 |---|---|---|---|
-| 100% | 99.4% | 100% | 100% |
+| 100% | 99.1% | 100% | 100% |
 
 Coverage includes the CLI, API server, sync, adapters, health, discovery, deploy and the
 dashboard (`web/`, run in jsdom). Tests never touch your real configs:

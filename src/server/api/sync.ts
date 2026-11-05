@@ -3,6 +3,7 @@ import { route } from "../route.js";
 import { loadConfig } from "../../config/store.js";
 import { syncAll, getServersForTarget } from "../../sync/engine.js";
 import { getTargetNames, getAdapter } from "../../targets/registry.js";
+import { computeDiff, changedFields } from "../../sync/diff.js";
 
 const router = Router();
 
@@ -13,48 +14,35 @@ router.post("/all", route(async (_req, res) => {
   res.json(results);
 }));
 
-// GET /api/sync/diff
+/**
+ * GET /api/sync/diff — what a sync would change, per editor. Only server ids
+ * and field names are sent: the configs hold real tokens, which never leave
+ * the hub process.
+ */
 router.get("/diff", route(async (_req, res) => {
   const config = await loadConfig();
-  const targets = getTargetNames();
-  const targetDiffs: Array<{ name: string; label: string; hasChanges: boolean; before: string; after: string; error?: string }> = [];
+  const targets = [];
 
-  for (const targetName of targets) {
-    const adapter = getAdapter(targetName);
-    const { servers } = await getServersForTarget(config, targetName);
-
-    let current: Map<string, unknown>;
+  for (const name of getTargetNames()) {
+    const adapter = getAdapter(name);
+    const label = adapter.config.displayName;
+    const { servers } = await getServersForTarget(config, name);
     try {
-      current = await adapter.read();
+      const servers_ = (await computeDiff(name, servers))
+        .filter((d) => d.action === "add" || d.action === "update")
+        .map((d) => ({
+          id: d.serverId,
+          action: d.action as "add" | "update",
+          fields: d.action === "update" ? changedFields(d.before!, d.after!) : [],
+        }));
+      targets.push({ name, label, hasChanges: servers_.length > 0, servers: servers_ });
     } catch (err) {
-      // Unreadable config: sync would refuse it too, so say so instead of diffing against {}
-      targetDiffs.push({
-        name: targetName,
-        label: adapter.config.displayName,
-        hasChanges: false,
-        before: "",
-        after: "",
-        error: (err as Error).message,
-      });
-      continue;
+      // Unreadable config: sync would refuse it too
+      targets.push({ name, label, hasChanges: false, servers: [], error: (err as Error).message });
     }
-    const before = Object.fromEntries(current);
-    // Sync is non-destructive: start from what's already there
-    const after: Record<string, unknown> = { ...before };
-    for (const s of servers) after[s.id] = adapter.toSerializedServer(s);
-    const beforeStr = JSON.stringify({ mcpServers: before }, null, 2);
-    const afterStr = JSON.stringify({ mcpServers: after }, null, 2);
-
-    targetDiffs.push({
-      name: targetName,
-      label: adapter.config.displayName,
-      hasChanges: beforeStr !== afterStr,
-      before: beforeStr,
-      after: afterStr,
-    });
   }
 
-  res.json({ targets: targetDiffs });
+  res.json({ targets });
 }));
 
 export default router;

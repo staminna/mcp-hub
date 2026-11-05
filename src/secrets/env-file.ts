@@ -1,4 +1,5 @@
-import { readFile, writeFile } from "fs/promises";
+import { readFile } from "fs/promises";
+import { writeFilePrivate } from "../fs/private.js";
 import { existsSync } from "fs";
 import { HUB_ENV_PATH } from "../config/defaults.js";
 
@@ -42,6 +43,8 @@ export async function saveEnvFile(
   if (existsSync(envPath)) {
     const raw = await readFile(envPath, "utf-8");
     existingLines = raw.split("\n");
+    // Drop trailing blank lines so each save doesn't add another one
+    while (existingLines.length && !existingLines[existingLines.length - 1].trim()) existingLines.pop();
   }
 
   const written = new Set<string>();
@@ -73,5 +76,5 @@ export async function saveEnvFile(
     }
   }
 
-  await writeFile(envPath, lines.join("\n") + "\n", "utf-8");
+  await writeFilePrivate(envPath, lines.join("\n") + "\n");
 }

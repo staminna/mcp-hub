@@ -20,7 +20,9 @@ describe("env file", () => {
   it("saves new keys, updates existing ones in place, keeps comments, drops removed keys", async () => {
     write(HUB_ENV_PATH, "# tokens\nA=old\nGONE=x\nnot a pair\n");
     await saveEnvFile({ A: "new", B: "added" });
-    expect(read(HUB_ENV_PATH)).toBe("# tokens\nA=new\nnot a pair\n\nB=added\n");
+    expect(read(HUB_ENV_PATH)).toBe("# tokens\nA=new\nnot a pair\nB=added\n");
+    await saveEnvFile({ A: "new", B: "added" });
+    expect(read(HUB_ENV_PATH)).toBe("# tokens\nA=new\nnot a pair\nB=added\n"); // no blank line creeping in
   });
 
   it("writes a fresh file at a given path", async () => {

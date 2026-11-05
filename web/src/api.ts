@@ -16,12 +16,12 @@ export interface TargetInfo {
   exists: boolean;
 }
 
+/** What a sync would do to one editor. Ids and field names only — never values. */
 export interface TargetDiff {
   name: TargetName;
   label: string;
   hasChanges: boolean;
-  before: string;
-  after: string;
+  servers: { id: string; action: "add" | "update"; fields: string[] }[];
   /** Set when the editor's config couldn't be read; sync would refuse it too. */
   error?: string;
 }
@@ -43,6 +43,13 @@ export interface MemoryEntry {
   description: string;
   type?: string;
   isIndex: boolean;
+}
+
+/** A ${VAR} the hub uses or a key in .env. Values are write-only and never sent here. */
+export interface SecretVar {
+  name: string;
+  source: "env-file" | "environment" | "missing";
+  usedBy: string[];
 }
 
 export type ContentKind = "skills" | "memories";
@@ -99,6 +106,10 @@ export const api = {
   discoverRegistry: () => request<DiscoveryResult[]>("GET", "/api/discover/registry"),
 
   importFrom: (target: TargetName) => request<{ logs: string[] }>("POST", `/api/import/${target}`),
+
+  secrets: () => request<SecretVar[]>("GET", "/api/secrets"),
+  setSecret: (name: string, value: string) => request<{ name: string }>("PUT", `/api/secrets/${q(name)}`, { value }),
+  deleteSecret: (name: string) => request<void>("DELETE", `/api/secrets/${q(name)}`),
 
   listContent: <K extends ContentKind>(kind: K) =>
     request<K extends "skills" ? SkillEntry[] : MemoryEntry[]>("GET", `/api/${kind}`),

@@ -1,5 +1,5 @@
 import { vi } from "vitest";
-import type { McpServer, TargetInfo, TargetDiff, SkillEntry, MemoryEntry, DiscoveryResult, SyncResult, HealthResult } from "../api.ts";
+import type { McpServer, TargetInfo, TargetDiff, SkillEntry, MemoryEntry, DiscoveryResult, SyncResult, HealthResult, SecretVar } from "../api.ts";
 
 export interface FakeState {
   servers: McpServer[];
@@ -14,6 +14,9 @@ export interface FakeState {
   health: Record<string, HealthResult>;
   sync: Record<string, Partial<SyncResult>>;
   importLogs: string[];
+  secrets: SecretVar[];
+  /** Values written through the fake (the real API never returns them) */
+  secretValues: Record<string, string>;
   /** "METHOD /path" (path without query) → forced failure */
   fail: Record<string, { status: number; body?: string }>;
   /** "METHOD /path" → promise to await before answering */
@@ -44,13 +47,15 @@ export function defaultState(): FakeState {
       { name: "cursor", label: "Cursor", icon: "K", path: "~/.cursor/mcp.json", exists: false },
     ],
     diff: [
-      { name: "claude-code", label: "Claude Code", hasChanges: false, before: '{"mcpServers":{}}', after: '{"mcpServers":{}}' },
+      { name: "claude-code", label: "Claude Code", hasChanges: false, servers: [] },
       {
         name: "cursor",
         label: "Cursor",
         hasChanges: true,
-        before: JSON.stringify({ mcpServers: { fetch: { command: "npx" }, same: { command: "a" } } }),
-        after: JSON.stringify({ mcpServers: { fetch: { command: "uvx", args: ["x"] }, same: { command: "a" }, added: { command: "b" } } }),
+        servers: [
+          { id: "added", action: "add", fields: [] },
+          { id: "fetch", action: "update", fields: ["command", "args"] },
+        ],
       },
     ],
     skills: [
@@ -73,6 +78,12 @@ export function defaultState(): FakeState {
     health: {},
     sync: {},
     importLogs: ["\x1b[32m  + fetch\x1b[39m", "1 imported"],
+    secrets: [
+      { name: "REMOTE_TOKEN", source: "missing", usedBy: ["remote"] },
+      { name: "SHELL_VAR", source: "environment", usedBy: [] },
+      { name: "STRIPE_KEY", source: "env-file", usedBy: ["fetch", "remote"] },
+    ],
+    secretValues: {},
     fail: {},
     delay: {},
     calls: [],
@@ -146,6 +157,19 @@ export function installFakeApi(overrides: Partial<FakeState> = {}): FakeState {
         st.servers.splice(i, 1);
         return new Response(null, { status: 204 });
       }
+    }
+    if (key === "GET /api/secrets") return json(st.secrets);
+    if ((m = path.match(/^\/api\/secrets\/([^/]+)$/))) {
+      const name = decodeURIComponent(m[1]);
+      if (method === "PUT") {
+        st.secretValues[name] = body.value;
+        const v = st.secrets.find((x) => x.name === name);
+        if (v) v.source = "env-file";
+        else st.secrets.push({ name, source: "env-file", usedBy: [] });
+        return json({ name, source: "env-file" });
+      }
+      st.secrets = st.secrets.filter((x) => x.name !== name);
+      return new Response(null, { status: 204 });
     }
     if (key === "GET /api/targets") return json(st.targets);
     if ((m = path.match(/^\/api\/targets\/([^/]+)\/sync$/))) return json(syncResult(st, m[1]));

@@ -1,6 +1,7 @@
 import { homedir } from "os";
 import { type HubConfig, type TargetName } from "../types.js";
 import { getAdapter } from "../targets/registry.js";
+import { editorKey } from "../targets/base.js";
 import { getServersForTarget } from "../sync/engine.js";
 
 /** Single-quote a value for a POSIX shell. */
@@ -31,12 +32,16 @@ export async function deployViaSSH(
     const current = await ssh.execCommand(`cat ${sh(remotePath)}`);
     const existingRaw = current.code === 0 ? current.stdout : "";
     const merged = existingRaw ? adapter.deserialize(existingRaw) : new Map();
-    for (const s of servers) merged.set(s.id, adapter.toSerializedServer(s));
+    for (const s of servers) merged.set(editorKey(merged, s.id), adapter.toSerializedServer(s));
     const content = adapter.serialize(merged, existingRaw);
 
+    // New files and folders private (umask 077); an existing file keeps its
+    // mode (GNU stat, then BSD stat). Written to a tmp file, then renamed.
     const dir = remotePath.slice(0, remotePath.lastIndexOf("/"));
+    const [f, tmp] = [sh(remotePath), sh(remotePath + ".tmp")];
     const write = await ssh.execCommand(
-      `mkdir -p ${sh(dir)} && cat > ${sh(remotePath + ".tmp")} && mv ${sh(remotePath + ".tmp")} ${sh(remotePath)}`,
+      `umask 077 && mkdir -p ${sh(dir)} && cat > ${tmp} && ` +
+        `{ [ ! -e ${f} ] || chmod "$(stat -c %a ${f} 2>/dev/null || stat -f %Lp ${f})" ${tmp}; } && mv ${tmp} ${f}`,
       { stdin: content }
     );
     if (write.code !== 0) throw new Error(write.stderr || `remote write failed (exit ${write.code})`);

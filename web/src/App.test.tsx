@@ -27,6 +27,7 @@ describe("App", () => {
       ["#/discover", "Popular"],
       ["#/skills", "Pick a skill"],
       ["#/memories", "Pick a memory"],
+      ["#/secrets", "Add a variable"],
       ["#/nowhere", "There's no page here"],
     ];
     for (const [hash, text] of pages) {

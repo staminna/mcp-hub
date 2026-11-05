@@ -11,6 +11,8 @@ import { skillsRouter, memoriesRouter } from "./api/content.js";
 import { getTargetNames } from "../targets/registry.js";
 import { type TargetName } from "../types.js";
 import { route } from "./route.js";
+import { localOnly } from "./guard.js";
+import secretsRouter from "./api/secrets.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -20,8 +22,11 @@ const webDir = [
   join(__dirname, "..", "web"), // from dist/server/
 ].find((d) => existsSync(join(d, "index.html")));
 
-export function createServer(): express.Express {
+export function createServer({ hosts = [] }: { hosts?: string[] } = {}): express.Express {
   const app = express();
+
+  // Only this machine: checked before anything else
+  app.use(localOnly(hosts));
 
   app.use(express.json());
 
@@ -33,6 +38,7 @@ export function createServer(): express.Express {
   app.use("/api/discover", discoverRouter);
   app.use("/api/skills", skillsRouter);
   app.use("/api/memories", memoriesRouter);
+  app.use("/api/secrets", secretsRouter);
 
   // Import endpoint: runs the CLI import and returns what it printed
   app.post("/api/import/:ide", route(async (req, res) => {

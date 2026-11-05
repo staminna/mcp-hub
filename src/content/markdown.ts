@@ -1,4 +1,5 @@
-import { readFile, writeFile, readdir, rename, stat, lstat } from "fs/promises";
+import { readFile, readdir, stat } from "fs/promises";
+import { writeFilePrivate } from "../fs/private.js";
 import { existsSync } from "fs";
 import { homedir } from "os";
 import { join, resolve, sep, basename, dirname, extname } from "path";
@@ -160,13 +161,6 @@ export async function readMarkdown(path: string): Promise<string> {
 export async function writeMarkdown(path: string, content: string): Promise<void> {
   const abs = assertAllowedPath(path);
   if (!existsSync(abs)) throw new Error("file does not exist");
-  // A symlinked file must be written through, not replaced by a rename
-  if ((await lstat(abs)).isSymbolicLink()) {
-    await writeFile(abs, content, "utf-8");
-    return;
-  }
-  // Atomic write: tmp file + rename, so a crash never leaves half a file
-  const tmp = abs + ".tmp";
-  await writeFile(tmp, content, "utf-8");
-  await rename(tmp, abs);
+  // Keeps the file's mode, writes through symlinks (many skills are links), atomic
+  await writeFilePrivate(abs, content);
 }

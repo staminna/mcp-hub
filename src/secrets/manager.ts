@@ -87,3 +87,32 @@ export function extractSecrets(
 
   return { config: { ...config, servers }, extracted };
 }
+
+export interface SecretVar {
+  name: string;
+  /** Where the value comes from at sync time, or "missing". Never the value itself. */
+  source: "env-file" | "environment" | "missing";
+  /** Hub servers whose env or args reference ${name}. */
+  usedBy: string[];
+}
+
+export const VAR_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/** Every ${VAR} the hub references plus every key in .env — names and status only. */
+export function listSecretVars(config: HubConfig, envFile: Record<string, string>): SecretVar[] {
+  const usedBy = new Map<string, Set<string>>();
+  for (const s of config.servers) {
+    for (const v of [...Object.values(s.env ?? {}), ...(s.args ?? [])]) {
+      for (const [, name] of v.matchAll(/\$\{([^}]+)\}/g)) {
+        if (!usedBy.has(name)) usedBy.set(name, new Set());
+        usedBy.get(name)!.add(s.id);
+      }
+    }
+  }
+  const names = new Set([...usedBy.keys(), ...Object.keys(envFile)]);
+  return [...names].sort().map((name) => ({
+    name,
+    source: envFile[name] ? "env-file" : process.env[name] ? "environment" : "missing",
+    usedBy: [...(usedBy.get(name) ?? [])].sort(),
+  }));
+}

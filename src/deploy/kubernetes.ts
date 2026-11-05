@@ -21,8 +21,9 @@ function run(cmd: string, args: string[], input: string): Promise<string> {
 }
 
 /**
- * Apply the target's config as a ConfigMap. The manifest goes to kubectl on
- * stdin, so resolved tokens never appear in the process list.
+ * Apply the target's config as a Kubernetes Secret (it holds real tokens, so
+ * not a ConfigMap). The manifest goes to kubectl on stdin, so the tokens never
+ * appear in the process list. Mount it with `volumes[].secret.secretName`.
  */
 export async function deployToK8s(
   config: HubConfig,
@@ -38,13 +39,14 @@ export async function deployToK8s(
   const name = options.configMapName ?? "mcp-config";
   const manifest = stringify({
     apiVersion: "v1",
-    kind: "ConfigMap",
+    kind: "Secret",
+    type: "Opaque",
     metadata: { name, namespace: ns },
-    data: { "mcp-config": content },
+    stringData: { "mcp-config": content },
   });
   const args = [...(options.context ? ["--context", options.context] : []), "apply", "-f", "-"];
 
   const stdout = await run("kubectl", args, manifest);
   const held = skipped.length ? ` (skipped, missing in .env: ${skipped.map((s) => s.id).join(", ")})` : "";
-  return `Deployed ${servers.length} servers to k8s ConfigMap ${ns}/${name}${held}: ${stdout.trim()}`;
+  return `Deployed ${servers.length} servers to k8s Secret ${ns}/${name}${held}: ${stdout.trim()}`;
 }

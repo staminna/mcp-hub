@@ -104,9 +104,10 @@ export function createCLI(): Command {
     .command("serve")
     .description("Start web dashboard")
     .option("--port <port>", "Port number", "3847")
+    .option("--host <host>", "Address to listen on (default 127.0.0.1, this machine only)")
     .action(async (opts) => {
       // A busy port is already explained by serveCommand; don't add a stack trace
-      await serveCommand({ port: parseInt(opts.port) }).catch(() => {});
+      await serveCommand({ port: parseInt(opts.port), host: opts.host }).catch(() => {});
     });
 
   program

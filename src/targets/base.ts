@@ -1,7 +1,24 @@
-import { readFile, writeFile, mkdir } from "fs/promises";
+import { readFile } from "fs/promises";
 import { existsSync } from "fs";
-import { dirname } from "path";
+import { writeFilePrivate } from "../fs/private.js";
 import { type McpServer, type TargetName, type TargetConfig } from "../types.js";
+import { slugify } from "../config/store.js";
+
+/** True if an editor's key is the hub server `id` (exact, or the same once slugified, e.g. "AbletonMCP"). */
+export function sameServer(editorKey: string, id: string): boolean {
+  return editorKey === id || slugify(editorKey) === id;
+}
+
+/**
+ * The key a hub server should be written under in an editor's config: an
+ * existing entry for it (exact match first, then e.g. "AbletonMCP" for
+ * "abletonmcp") so sync updates it in place instead of adding a near-duplicate.
+ */
+export function editorKey(existing: Map<string, unknown>, id: string): string {
+  if (existing.has(id)) return id;
+  for (const key of existing.keys()) if (sameServer(key, id)) return key;
+  return id;
+}
 
 export interface SerializedServer {
   command?: string;
@@ -34,16 +51,9 @@ export abstract class TargetAdapter {
     return readFile(this.configPath, "utf-8");
   }
 
+  /** Atomic, keeps the file's permissions (new configs are private), writes through symlinks. */
   async writeRaw(content: string): Promise<void> {
-    const dir = dirname(this.configPath);
-    if (!existsSync(dir)) {
-      await mkdir(dir, { recursive: true });
-    }
-    // Atomic write: write to .tmp then rename
-    const tmpPath = this.configPath + ".tmp";
-    await writeFile(tmpPath, content, "utf-8");
-    const { rename } = await import("fs/promises");
-    await rename(tmpPath, this.configPath);
+    await writeFilePrivate(this.configPath, content);
   }
 
   /** Extract MCP servers from the IDE config */
@@ -110,7 +120,7 @@ export abstract class TargetAdapter {
   async merge(hubServers: McpServer[]): Promise<void> {
     const serialized = await this.read();
     for (const server of hubServers) {
-      serialized.set(server.id, this.toSerializedServer(server));
+      serialized.set(editorKey(serialized, server.id), this.toSerializedServer(server));
     }
     await this.write(serialized);
   }

@@ -112,7 +112,7 @@ export function ServerDetail({ id }: { id: string }) {
                   <dt className="mono">{k}</dt>
                   <dd className="mono wrap">
                     {v}
-                    {v.includes("${") && <span className="muted"> (filled in from .env at sync)</span>}
+                    {v.includes("${") && <span className="muted"> (filled in from .env at sync; <a href="#/secrets">manage secrets</a>)</span>}
                   </dd>
                 </div>
               ))}

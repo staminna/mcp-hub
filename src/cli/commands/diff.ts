@@ -1,9 +1,10 @@
 import chalk from "chalk";
 import { type TargetName } from "../../types.js";
 import { loadConfig } from "../../config/store.js";
-import { computeDiff } from "../../sync/diff.js";
+import { computeDiff, changedFields } from "../../sync/diff.js";
 import { getServersForTarget } from "../../sync/engine.js";
 import { getTargetNames, checkTargetName } from "../../targets/registry.js";
+import { sameServer } from "../../targets/base.js";
 
 export async function diffCommand(options: {
   target?: string;
@@ -33,7 +34,7 @@ export async function diffCommand(options: {
     }
     // A skipped server still in the IDE config is held back, not "unmanaged"
     const diffs = all.filter(
-      (d) => !(d.action === "unmanaged" && skipped.some((sk) => sk.id === d.serverId))
+      (d) => !(d.action === "unmanaged" && skipped.some((sk) => sameServer(d.serverId, sk.id)))
     );
     const changes = diffs.filter(
       (d) => d.action === "add" || d.action === "update"
@@ -63,25 +64,4 @@ export async function diffCommand(options: {
       }
     }
   }
-}
-
-/** Top-level keys that differ, with env broken out per variable (e.g. "env.TOKEN"). */
-function changedFields(
-  before: Record<string, unknown>,
-  after: Record<string, unknown>
-): string[] {
-  const out: string[] = [];
-  for (const k of new Set([...Object.keys(before), ...Object.keys(after)])) {
-    const b = before[k], a = after[k];
-    if (JSON.stringify(b) === JSON.stringify(a)) continue;
-    if (k === "env" && b && a && typeof b === "object" && typeof a === "object") {
-      const be = b as Record<string, unknown>, ae = a as Record<string, unknown>;
-      for (const e of new Set([...Object.keys(be), ...Object.keys(ae)])) {
-        if (be[e] !== ae[e]) out.push(`env.${e}${e in be ? (e in ae ? "" : " (removed)") : " (new)"}`);
-      }
-    } else {
-      out.push(k);
-    }
-  }
-  return out;
 }

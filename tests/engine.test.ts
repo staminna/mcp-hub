@@ -148,3 +148,31 @@ describe("createBackup", () => {
     expect(await createBackup("docker", y, join(home(), "backups"))).toMatch(/\.yaml$/);
   });
 });
+
+describe("editor names that differ from the hub id only by case or punctuation", () => {
+  it("updates the editor's existing entry instead of adding a near-duplicate", async () => {
+    write(cursor.configPath, { mcpServers: { AbletonMCP: { command: "old" }, "team.example.com": { command: "t" } } });
+    const cfg = config([server({ id: "abletonmcp" }), server({ id: "team-example-com" })]);
+    const dry = await syncTarget(cfg, "cursor", true);
+    expect(dry).toMatchObject({ added: [], updated: ["AbletonMCP", "team.example.com"], unmanaged: [] });
+    await syncTarget(cfg, "cursor");
+    const out = readJson(cursor.configPath).mcpServers;
+    expect(Object.keys(out)).toEqual(["AbletonMCP", "team.example.com"]);
+    expect(out.AbletonMCP.command).toBe("node");
+    expect((await syncTarget(cfg, "cursor")).unchanged).toEqual(["AbletonMCP", "team.example.com"]);
+  });
+
+  it("prefers an exact match when both spellings exist", async () => {
+    write(cursor.configPath, { mcpServers: { AbletonMCP: { command: "theirs" }, abletonmcp: { command: "old" } } });
+    await syncTarget(config([server({ id: "abletonmcp" })]), "cursor");
+    const out = readJson(cursor.configPath).mcpServers;
+    expect(out).toEqual({ AbletonMCP: { command: "theirs" }, abletonmcp: { command: "node", args: ["server.js"] } });
+  });
+
+  it("doesn't call a held-back server unmanaged under its editor spelling", async () => {
+    write(cursor.configPath, { mcpServers: { "My.Secret": { command: "keep" } } });
+    const r = await syncTarget(config([server(), server({ id: "my-secret", env: { T: "${NOT_SET_X}" } })]), "cursor");
+    expect(r.unmanaged).toEqual([]);
+    expect(readJson(cursor.configPath).mcpServers["My.Secret"]).toEqual({ command: "keep" });
+  });
+});
