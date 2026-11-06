@@ -9,6 +9,8 @@ import {
   removeServer,
   slugify,
 } from "../../config/store.js";
+import { extractSecrets } from "../../secrets/manager.js";
+import { loadEnvFile, saveEnvFile } from "../../secrets/env-file.js";
 
 const router = Router();
 
@@ -49,9 +51,15 @@ router.post("/", route(async (req, res) => {
     targets: body.targets ?? "*",
   };
 
-  const updated = addServer(config, server);
-  await saveConfig(updated);
-  res.status(201).json(server);
+  // A pasted config often carries a literal token: keep it out of mcp-hub.json
+  // (it's committed) by moving it to .env and leaving a ${VAR} behind, like import does
+  const { config: clean, extracted } = extractSecrets({ ...config, servers: [server] });
+  if (Object.keys(extracted).length > 0) {
+    await saveEnvFile({ ...(await loadEnvFile()), ...extracted });
+  }
+  const saved = clean.servers[0];
+  await saveConfig(addServer(config, saved));
+  res.status(201).json(saved);
 }));
 
 // PUT /api/servers/:id

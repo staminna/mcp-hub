@@ -4,6 +4,7 @@ import { loadConfig, saveConfig, slugify } from "../../config/store.js";
 import { getAdapter, getAllAdapters, checkTargetName } from "../../targets/registry.js";
 import { extractSecrets } from "../../secrets/manager.js";
 import { loadEnvFile, saveEnvFile } from "../../secrets/env-file.js";
+import { ClaudeCodeAdapter } from "../../targets/claude-code.js";
 
 export async function importCommand(options: {
   from?: string;
@@ -17,6 +18,7 @@ export async function importCommand(options: {
   const imported: McpServer[] = [];
   let totalImported = 0;
   let totalSkipped = 0;
+  let linked = 0;
 
   for (const adapter of adapters) {
     if (!adapter.exists()) {
@@ -33,6 +35,13 @@ export async function importCommand(options: {
         const existing = [...config.servers, ...imported].find((s) => s.id === slug);
 
         if (existing) {
+          // Already in the hub from another editor: record that this editor has it too
+          if (existing.targets !== "*" && !existing.targets.includes(adapter.name)) {
+            existing.targets = [...existing.targets, adapter.name];
+            console.log(chalk.cyan(`    ~ ${id} (already in the hub; now also synced here)`));
+            linked++;
+            continue;
+          }
           console.log(chalk.dim(`    skip ${id} (already exists)`));
           totalSkipped++;
           continue;
@@ -77,10 +86,20 @@ export async function importCommand(options: {
       console.log(chalk.dim(`  moved ${names.length} secret(s) to .env: ${names.join(", ")}`));
     }
     config.servers.push(...clean.servers);
-    await saveConfig(config);
   }
+  if (totalImported > 0 || linked > 0) await saveConfig(config);
 
   console.log(
-    `\n  ${chalk.green(`${totalImported} imported`)}, ${chalk.dim(`${totalSkipped} skipped`)}`
+    `\n  ${chalk.green(`${totalImported} imported`)}, ${linked > 0 ? chalk.cyan(`${linked} linked to more editors`) + ", " : ""}${chalk.dim(`${totalSkipped} skipped`)}`
   );
+
+  // Claude Code's project-scoped servers aren't imported; say so instead of silently missing them
+  const claude = adapters.find((a): a is ClaudeCodeAdapter => a instanceof ClaudeCodeAdapter);
+  const local = (await claude?.projectServers().catch(() => []) ?? [])
+    .filter((p) => !config.servers.some((s) => s.id === slugify(p.id)));
+  if (local.length > 0) {
+    console.log(chalk.yellow(`  ${local.length} project-scoped Claude Code server(s) not imported: ` +
+      local.map((p) => `${p.id} (${p.project})`).join(", ")));
+    console.log(chalk.dim("  They'd become user-wide in the hub. Add one on purpose with: mcp-hub add <name> --url … or the dashboard's paste box"));
+  }
 }

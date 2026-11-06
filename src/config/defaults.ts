@@ -14,8 +14,16 @@ export const TARGET_CONFIGS: Record<TargetName, TargetConfig> = {
   },
   "claude-mcp": {
     name: "claude-mcp",
-    displayName: "Claude Desktop (MCP)",
+    // Not read by Claude Desktop itself (that's claude-desktop below); kept for existing targets lists
+    displayName: "Claude (~/.claude/mcp_config.json)",
     configPath: join(home, ".claude", "mcp_config.json"),
+    format: "json",
+  },
+  "claude-desktop": {
+    name: "claude-desktop",
+    displayName: "Claude Desktop",
+    // The file Claude Desktop actually loads its MCP servers from (macOS)
+    configPath: join(home, "Library", "Application Support", "Claude", "claude_desktop_config.json"),
     format: "json",
   },
   "claude-settings": {
@@ -66,6 +74,7 @@ export const DEFAULT_HUB_SETTINGS: HubSettings = {
   backupDir: join(home, ".mcp-hub", "backups"),
   autoBackup: true,
   defaultTargets: ["claude-mcp", "windsurf", "cursor"],
+  disabledTargets: [],
 };
 
 // Hub home: MCP_HUB_HOME if set, otherwise the project root

@@ -2,7 +2,7 @@ import { Router } from "express";
 import { route } from "../route.js";
 import { loadConfig } from "../../config/store.js";
 import { syncAll, getServersForTarget } from "../../sync/engine.js";
-import { getTargetNames, getAdapter } from "../../targets/registry.js";
+import { getEnabledTargetNames, getAdapter } from "../../targets/registry.js";
 import { computeDiff, changedFields } from "../../sync/diff.js";
 
 const router = Router();
@@ -23,7 +23,7 @@ router.get("/diff", route(async (_req, res) => {
   const config = await loadConfig();
   const targets = [];
 
-  for (const name of getTargetNames()) {
+  for (const name of getEnabledTargetNames(config)) {
     const adapter = getAdapter(name);
     const label = adapter.config.displayName;
     const { servers } = await getServersForTarget(config, name);

@@ -9,7 +9,7 @@ describe("Dashboard", () => {
     installFakeApi();
     renderWithToasts(<Dashboard />);
     await screen.findByText("fetch");
-    expect(screen.getByText("3 in the hub, 2 enabled. Each dot is an editor the server is synced to.")).toBeTruthy();
+    expect(screen.getByText("3 in the hub, 2 enabled. Filled dot: synced to that editor. Ring: the editor has it, but the hub doesn't sync it there.")).toBeTruthy();
     const row = screen.getByText("fetch").closest("tr")!;
     expect(within(row).getByTitle("Synced to Claude Code")).toBeTruthy();
     expect(within(row).getByTitle("Synced to Cursor")).toBeTruthy();
@@ -18,6 +18,18 @@ describe("Dashboard", () => {
     // the missing editor's header is dimmed and says so
     expect(screen.getByTitle("Cursor — ~/.cursor/mcp.json (not found)")).toBeTruthy();
     expect(screen.getByTitle("Claude Code — ~/.claude.json")).toBeTruthy();
+  });
+
+  it("rings servers an editor has but the hub doesn't sync there, and hides editors that are off", async () => {
+    const st = installFakeApi({ servers: [server({ id: "fetch", targets: ["claude-code"] }), server({ id: "solo", targets: ["cursor"] })] });
+    st.targets[1] = { ...st.targets[1], present: ["fetch"] };
+    st.targets.push({ name: "unity", label: "Unity MCP", icon: "U", path: "~/.unity-mcp/config.json", exists: true, enabled: false, present: [] });
+    renderWithToasts(<Dashboard />);
+    const row = (await screen.findByText("fetch")).closest("tr")!;
+    expect(within(row).getByTitle("Synced to Claude Code").className).toBe("jack on");
+    expect(within(row).getByTitle(/^In Cursor, but the hub doesn't sync it there/).className).toBe("jack stray");
+    expect(within(screen.getByText("solo").closest("tr")!).getByTitle("Not in Claude Code").className).toBe("jack");
+    expect(screen.queryByText("Unity MCP")).toBeNull();
   });
 
   it("filters by name, command or tag", async () => {

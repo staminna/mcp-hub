@@ -1,4 +1,6 @@
-import { JsonTargetAdapter, type SerializedServer } from "./base.js";
+import { readFile } from "fs/promises";
+import { basename } from "path";
+import { JsonTargetAdapter, parseExistingJson, type SerializedServer } from "./base.js";
 import { TARGET_CONFIGS } from "../config/defaults.js";
 import { type McpServer } from "../types.js";
 
@@ -28,5 +30,19 @@ export class ClaudeCodeAdapter extends JsonTargetAdapter {
     const server = super.fromSerializedServer(id, s);
     if (s.url && s.type === "sse") server.transport = "sse";
     return server;
+  }
+
+  /**
+   * Project-scoped ("Local") servers: projects[path].mcpServers. Sync never touches
+   * them, and import doesn't take them (they'd become user-wide); this is for telling
+   * the user they exist, e.g. "arkestra (hubmcp)".
+   */
+  async projectServers(): Promise<Array<{ project: string; id: string }>> {
+    if (!this.exists()) return [];
+    const data = parseExistingJson(await readFile(this.configPath, "utf-8"), this.configPath);
+    const projects = (data.projects ?? {}) as Record<string, { mcpServers?: Record<string, unknown> }>;
+    return Object.entries(projects).flatMap(([path, p]) =>
+      Object.keys(p?.mcpServers ?? {}).map((id) => ({ project: basename(path), id }))
+    );
   }
 }

@@ -15,8 +15,8 @@ export function Import() {
 
   if (!targets.data) return <Loading label="Loading editors…" />;
 
-  const run = async () => {
-    if (!from) return;
+  // The button stays disabled until an editor is chosen
+  const run = async (from: TargetName) => {
     setBusy(true);
     setLog(null);
     try {
@@ -50,7 +50,7 @@ export function Import() {
         ))}
       </div>
       <div className="form-actions">
-        <button className="btn btn-primary" onClick={run} disabled={!from || busy}>
+        <button className="btn btn-primary" onClick={() => run(from!)} disabled={!from || busy}>
           {busy && <Spinner />} {from ? `Import from ${targets.data.find((t) => t.name === from)?.label}` : "Choose an editor"}
         </button>
       </div>

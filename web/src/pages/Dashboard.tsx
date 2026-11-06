@@ -28,7 +28,8 @@ export function Dashboard() {
       : <Loading label="Loading servers…" />;
   }
 
-  const cols: TargetInfo[] = targets.data;
+  // Editors that are switched off aren't synced, so they get no column
+  const cols: TargetInfo[] = targets.data.filter((t) => t.enabled);
   const allNames = cols.map((t) => t.name);
   const enabled = list.filter((s) => !s.disabled).length;
 
@@ -65,7 +66,7 @@ export function Dashboard() {
     <div className="page page-wide">
       <PageHeader
         title="Servers"
-        subtitle={`${list.length} in the hub, ${enabled} enabled. Each dot is an editor the server is synced to.`}
+        subtitle={`${list.length} in the hub, ${enabled} enabled. Filled dot: synced to that editor. Ring: the editor has it, but the hub doesn\'t sync it there.`}
         actions={
           <>
             <button className="btn btn-ghost" onClick={checkAll} disabled={checkingAll}>
@@ -111,12 +112,20 @@ export function Dashboard() {
                         <a href={`#/server/${encodeURIComponent(s.id)}`} className="server-name">{s.name}</a>
                         <div className="server-launch mono" title={launchLine(s)}>{launchLine(s)}</div>
                       </td>
-                      {cols.map((t) => (
-                        <td key={t.name} className="col-target">
-                          <span className={`jack${to.has(t.name) ? " on" : ""}`}
-                            title={to.has(t.name) ? `Synced to ${t.label}` : `Not synced to ${t.label}`} />
-                        </td>
-                      ))}
+                      {cols.map((t) => {
+                        const synced = to.has(t.name);
+                        const there = t.present.includes(s.id);
+                        const [cls, title] = synced
+                          ? [" on", `Synced to ${t.label}`]
+                          : there
+                            ? [" stray", `In ${t.label}, but the hub doesn't sync it there (edit the server's editors, or re-run import)`]
+                            : ["", `Not in ${t.label}`];
+                        return (
+                          <td key={t.name} className="col-target">
+                            <span className={`jack${cls}`} title={title} />
+                          </td>
+                        );
+                      })}
                       <td className="col-health">
                         <button className="lamp-btn" onClick={() => check(s)} disabled={s.disabled || h?.status === "checking"}
                           title={h?.error ?? "Start the server and check it answers"}>

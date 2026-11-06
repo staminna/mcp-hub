@@ -5,6 +5,8 @@ import { syncTarget, syncAll, getServersForTarget } from "../src/sync/engine.js"
 import { computeDiff } from "../src/sync/diff.js";
 import { createBackup } from "../src/sync/backup.js";
 import { getAdapter } from "../src/targets/registry.js";
+import { TargetAdapter } from "../src/targets/base.js";
+import { vi } from "vitest";
 import { HUB_ENV_PATH } from "../src/config/defaults.js";
 import { server, config, write, readJson, remove, home } from "./helpers.js";
 
@@ -129,8 +131,22 @@ describe("syncTarget", () => {
 describe("syncAll", () => {
   it("returns one result per target", async () => {
     const results = await syncAll(config([server({ targets: ["cursor"] })]), true);
-    expect(results).toHaveLength(9);
+    expect(results).toHaveLength(10);
     expect(results.find((r) => r.target === "cursor")!.added).toEqual(["s1"]);
+  });
+
+  it("skips editors that are turned off", async () => {
+    const results = await syncAll(config([server()], { disabledTargets: ["cursor", "unity"] }), true);
+    expect(results).toHaveLength(8);
+    expect(results.map((r) => r.target)).not.toContain("cursor");
+  });
+
+  it("won't write to an editor that's turned off (dry run still previews it)", async () => {
+    const c = config([server()], { disabledTargets: ["cursor"] });
+    expect((await syncTarget(c, "cursor", true)).added).toEqual(["s1"]);
+    const r = await syncTarget(c, "cursor");
+    expect(r.error).toBe("cursor is turned off — enable it first");
+    expect(existsSync(getAdapter("cursor").configPath)).toBe(false);
   });
 });
 
@@ -174,5 +190,16 @@ describe("editor names that differ from the hub id only by case or punctuation",
     const r = await syncTarget(config([server(), server({ id: "my-secret", env: { T: "${NOT_SET_X}" } })]), "cursor");
     expect(r.unmanaged).toEqual([]);
     expect(readJson(cursor.configPath).mcpServers["My.Secret"]).toEqual({ command: "keep" });
+  });
+});
+
+describe("errors that aren't Error objects", () => {
+  it("still reports them as text", async () => {
+    const spy = vi.spyOn(TargetAdapter.prototype, "merge").mockRejectedValue("disk on fire");
+    try {
+      expect((await syncTarget(config([server()]), "cursor")).error).toBe("disk on fire");
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

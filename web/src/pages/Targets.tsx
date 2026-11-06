@@ -31,6 +31,18 @@ export function Targets() {
     }
   };
 
+  const setEnabled = async (name: TargetName, enabled: boolean) => {
+    setBusy((b) => ({ ...b, [name]: true }));
+    try {
+      await api.setTargetEnabled(name, enabled);
+      targets.reload();
+    } catch (err) {
+      toast.error(`Couldn't turn ${name} ${enabled ? "on" : "off"}`, (err as Error).message);
+    } finally {
+      setBusy((b) => ({ ...b, [name]: false }));
+    }
+  };
+
   const syncAll = async () => {
     setBusy((b) => ({ ...b, all: true }));
     try {
@@ -49,7 +61,7 @@ export function Targets() {
     <div className="page">
       <PageHeader
         title="Editors"
-        subtitle="The config files sync writes to. Sync only adds and updates hub servers; anything else in the file is kept, and a backup is made first."
+        subtitle="The config files sync writes to. Turn off editors you don't use and sync will leave them alone. Sync only adds and updates hub servers; anything else in the file is kept, and a backup is made first."
         actions={
           <>
             <a className="btn btn-ghost" href="#/diff">Review changes</a>
@@ -63,14 +75,19 @@ export function Targets() {
         {targets.data.map((t) => {
           const r = results[t.name];
           return (
-            <li key={t.name} className="target">
+            <li key={t.name} className={t.enabled ? "target" : "target off"}>
               <span className="target-icon" aria-hidden="true">{t.icon}</span>
               <div className="target-main">
                 <div className="target-name">{t.label}</div>
                 <div className="mono muted">{t.path}{!t.exists && " (not found yet; sync will create it)"}</div>
+                {!t.enabled && <div className="muted">Off: skipped by Sync all and auto-sync</div>}
                 {r && <div className={r.error ? "error-text" : "ok-text"}>{syncSummary(r)}</div>}
               </div>
-              <ConfirmButton className="btn btn-ghost" confirmLabel={`Write ${t.path}`} onConfirm={() => sync(t.name)} disabled={busy[t.name]}>
+              <button role="switch" aria-checked={t.enabled} aria-label={`Sync to ${t.label}`}
+                className="switch" onClick={() => setEnabled(t.name, !t.enabled)} disabled={busy[t.name]}>
+                <span />
+              </button>
+              <ConfirmButton className="btn btn-ghost" confirmLabel={`Write ${t.path}`} onConfirm={() => sync(t.name)} disabled={busy[t.name] || !t.enabled}>
                 {busy[t.name] && <Spinner />} Sync
               </ConfirmButton>
             </li>

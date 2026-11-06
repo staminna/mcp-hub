@@ -43,8 +43,8 @@ export function defaultState(): FakeState {
       server({ id: "off", disabled: true }),
     ],
     targets: [
-      { name: "claude-code", label: "Claude Code", icon: "C", path: "~/.claude.json", exists: true },
-      { name: "cursor", label: "Cursor", icon: "K", path: "~/.cursor/mcp.json", exists: false },
+      { name: "claude-code", label: "Claude Code", icon: "C", path: "~/.claude.json", exists: true, enabled: true, present: ["remote"] },
+      { name: "cursor", label: "Cursor", icon: "K", path: "~/.cursor/mcp.json", exists: false, enabled: true, present: [] },
     ],
     diff: [
       { name: "claude-code", label: "Claude Code", hasChanges: false, servers: [] },
@@ -172,8 +172,14 @@ export function installFakeApi(overrides: Partial<FakeState> = {}): FakeState {
       return new Response(null, { status: 204 });
     }
     if (key === "GET /api/targets") return json(st.targets);
+    if (method === "PUT" && (m = path.match(/^\/api\/targets\/([^/]+)$/))) {
+      const t = st.targets.find((x) => x.name === m![1]);
+      if (!t) return json({ error: "Unknown target" }, 400);
+      t.enabled = body.enabled;
+      return json({ name: t.name, enabled: t.enabled });
+    }
     if ((m = path.match(/^\/api\/targets\/([^/]+)\/sync$/))) return json(syncResult(st, m[1]));
-    if (key === "POST /api/sync/all") return json(st.targets.map((t) => syncResult(st, t.name)));
+    if (key === "POST /api/sync/all") return json(st.targets.filter((t) => t.enabled).map((t) => syncResult(st, t.name)));
     if (key === "GET /api/sync/diff") return json({ targets: st.diff });
     if (key === "GET /api/discover/registry") return json(st.registry);
     if (key === "GET /api/discover/running") return json(st.running);

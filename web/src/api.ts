@@ -14,6 +14,10 @@ export interface TargetInfo {
   icon: string;
   path: string;
   exists: boolean;
+  /** Off = sync, diff and auto-sync skip this editor. */
+  enabled: boolean;
+  /** Hub server ids this editor's config already contains, synced or not. */
+  present: string[];
 }
 
 /** What a sync would do to one editor. Ids and field names only — never values. */
@@ -97,6 +101,8 @@ export const api = {
 
   targets: () => request<TargetInfo[]>("GET", "/api/targets"),
   syncTarget: (name: TargetName) => request<SyncResult>("POST", `/api/targets/${name}/sync`),
+  setTargetEnabled: (name: TargetName, enabled: boolean) =>
+    request<{ name: TargetName; enabled: boolean }>("PUT", `/api/targets/${name}`, { enabled }),
   syncAll: () => request<SyncResult[]>("POST", "/api/sync/all"),
   diff: () => request<{ targets: TargetDiff[] }>("GET", "/api/sync/diff"),
 

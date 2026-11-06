@@ -1,7 +1,7 @@
 import { readFile, writeFile, mkdir } from "fs/promises";
 import { existsSync } from "fs";
 import { dirname } from "path";
-import { type HubConfig, type McpServer } from "../types.js";
+import { type HubConfig, type McpServer, type TargetName } from "../types.js";
 import { HUB_CONFIG_PATH, DEFAULT_HUB_SETTINGS } from "./defaults.js";
 
 function defaultConfig(): HubConfig {
@@ -61,6 +61,13 @@ export function removeServer(config: HubConfig, id: string): HubConfig {
     ...config,
     servers: config.servers.filter((s) => s.id !== id),
   };
+}
+
+/** Turn an editor on or off for sync (stored as settings.disabledTargets). */
+export function setTargetEnabled(config: HubConfig, target: TargetName, enabled: boolean): HubConfig {
+  const off = (config.settings.disabledTargets ?? []).filter((t) => t !== target);
+  if (!enabled) off.push(target);
+  return { ...config, settings: { ...config.settings, disabledTargets: off } };
 }
 
 export function slugify(name: string): string {

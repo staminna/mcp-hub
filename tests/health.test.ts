@@ -115,6 +115,17 @@ describe("health checker: http", () => {
   beforeAll(async () => {
     srv = createServer((req, res) => {
       if (req.url === "/slow") return; // never answers
+      if (req.url === "/post-only") {
+        // Like a Streamable-HTTP MCP server: anything but POST initialize is a 405
+        let body = "";
+        req.on("data", (c) => (body += c));
+        req.on("end", () => {
+          const ok = req.method === "POST" && JSON.parse(body || "{}").method === "initialize";
+          res.statusCode = ok ? 200 : 405;
+          res.end();
+        });
+        return;
+      }
       res.statusCode = req.url === "/ok" ? 200 : 500;
       res.end();
     });
@@ -128,6 +139,9 @@ describe("health checker: http", () => {
 
   it("is healthy on 2xx", async () => {
     expect((await checkHealth(http(`${base}/ok`))).status).toBe("healthy");
+  });
+  it("probes with POST initialize, so POST-only MCP servers are healthy", async () => {
+    expect((await checkHealth(http(`${base}/post-only`))).status).toBe("healthy");
   });
   it("is unhealthy on an error status", async () => {
     expect(await checkHealth(http(`${base}/bad`))).toMatchObject({ status: "unhealthy", error: "HTTP 500" });

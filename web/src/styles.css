@@ -147,6 +147,7 @@ tr.off .jack.on { background: transparent; border-color: var(--amber); box-shado
 
 .jack { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--line); }
 .jack.on { background: var(--amber); border-color: var(--amber); box-shadow: 0 0 0 3px var(--amber-soft); }
+.jack.stray { border: 2px dashed var(--amber); }
 
 .lamp { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--muted); }
 .lamp-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
@@ -196,6 +197,8 @@ tr.off .jack.on { background: transparent; border-color: var(--amber); box-shado
 .check input, .choice input { width: auto; accent-color: var(--amber); }
 .check.muted { color: var(--muted); }
 .form-problem { color: var(--red); margin: 16px 0 0; }
+.paste-box { margin-bottom: 16px; }
+.paste-box .form-actions { margin-top: 12px; }
 .form-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
 
 /* ── Editors, import ───────────────────────────────────── */
@@ -205,6 +208,7 @@ tr.off .jack.on { background: transparent; border-color: var(--amber); box-shado
 .target-main { flex: 1; min-width: 0; }
 .target-icon { font-size: 18px; width: 24px; text-align: center; }
 .target-name { font-weight: 600; }
+.target.off .target-icon, .target.off .target-main { opacity: .5; }
 .choices { display: grid; gap: 8px; }
 .secret { align-items: flex-start; }
 .secret .target-main { display: grid; gap: 6px; }

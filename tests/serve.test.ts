@@ -16,6 +16,16 @@ describe("serve", () => {
     srv!.close();
   });
 
+  it("watches the config when asked, and stops when the server closes", async () => {
+    let srv: Server | undefined;
+    const out = await captureLog(async () => { srv = await serveCommand({ port: 0, watch: "review" }); });
+    expect(out).toMatch(/changes are reported, not written/);
+    await new Promise((r) => srv!.close(r));
+    const auto = await captureLog(async () => { srv = await serveCommand({ port: 0, watch: "auto" }); });
+    expect(auto).toMatch(/editors sync on change, once the config is valid/);
+    await new Promise((r) => srv!.close(r));
+  });
+
   it("explains a busy port instead of crashing", async () => {
     const busy = createServer().listen(0, "127.0.0.1");
     await new Promise((r) => busy.once("listening", r));

@@ -5,6 +5,18 @@ import { resolveServer } from "../secrets/manager.js";
 
 const TIMEOUT_MS = 10000;
 
+// The MCP initialize request: every server must answer it, over stdio or HTTP
+const INIT_REQUEST = JSON.stringify({
+  jsonrpc: "2.0",
+  id: 1,
+  method: "initialize",
+  params: {
+    protocolVersion: "2024-11-05",
+    capabilities: {},
+    clientInfo: { name: "mcp-hub", version: "1.0.0" },
+  },
+});
+
 async function checkStdio(server: McpServer, timeoutMs: number): Promise<HealthResult> {
   const start = Date.now();
 
@@ -93,19 +105,9 @@ async function checkStdio(server: McpServer, timeoutMs: number): Promise<HealthR
       }
     });
 
-    // Send MCP initialize request
-    const initRequest = JSON.stringify({
-      jsonrpc: "2.0",
-      id: 1,
-      method: "initialize",
-      params: {
-        protocolVersion: "2024-11-05",
-        capabilities: {},
-        clientInfo: { name: "mcp-hub", version: "1.0.0" },
-      },
-    });
-
-    proc.stdin.write(initRequest + "\n");
+    // A server that exits before reading stdin gives EPIPE; "close" reports the result
+    proc.stdin.on("error", () => {});
+    proc.stdin.write(INIT_REQUEST + "\n");
     proc.stdin.end();
   });
 }
@@ -126,12 +128,21 @@ async function checkHttp(server: McpServer, timeoutMs: number): Promise<HealthRe
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
 
+    // Streamable-HTTP servers only have to accept POST (HEAD/GET often give 405),
+    // so probe with a real initialize call
     const response = await fetch(server.url, {
-      method: "HEAD",
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json, text/event-stream",
+      },
+      body: INIT_REQUEST,
       signal: controller.signal,
     });
 
     clearTimeout(timer);
+    // Don't wait on the body: an SSE reply can stay open until the timeout
+    await response.body?.cancel().catch(() => {});
 
     return {
       serverId: server.id,

@@ -46,8 +46,8 @@ export function MarkdownBrowser({ kind }: { kind: ContentKind }) {
     }
   };
 
-  const save = async () => {
-    if (!selected || draft === null) return;
+  // Save is only enabled while editing an open file (dirty), so both are set
+  const save = async (selected: ContentEntry, draft: string) => {
     setSaving(true);
     try {
       await api.saveContent(kind, selected.path, draft);
@@ -117,7 +117,7 @@ export function MarkdownBrowser({ kind }: { kind: ContentKind }) {
                   {draft !== null ? (
                     <>
                       <button className="btn btn-ghost" onClick={() => setDraft(null)} disabled={saving}>Cancel</button>
-                      <button className="btn btn-primary" onClick={save} disabled={saving || !dirty}>{saving && <Spinner />} Save</button>
+                      <button className="btn btn-primary" onClick={() => save(selected!, draft!)} disabled={saving || !dirty}>{saving && <Spinner />} Save</button>
                     </>
                   ) : (
                     <button className="btn btn-ghost" disabled={!doc} onClick={() => doc && setDraft(doc.content)}>Edit</button>
