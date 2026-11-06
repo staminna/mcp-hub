@@ -5,6 +5,7 @@ import { addCommand } from "./commands/add.js";
 import { removeCommand, enableCommand, disableCommand } from "./commands/remove.js";
 import { syncCommand } from "./commands/sync.js";
 import { diffCommand } from "./commands/diff.js";
+import { targetsListCommand, targetsEnableCommand, targetsDisableCommand } from "./commands/targets.js";
 import { backupCommand } from "./commands/backup.js";
 import { healthCommand } from "./commands/health.js";
 import { discoverCommand } from "./commands/discover.js";
@@ -68,6 +69,19 @@ export function createCLI(): Command {
     .description("Disable a server")
     .action(disableCommand);
 
+  const targets = program
+    .command("targets")
+    .description("List editors and whether sync writes to them")
+    .action(targetsListCommand);
+  targets
+    .command("enable <ide>")
+    .description("Turn an editor on: sync writes to it")
+    .action(targetsEnableCommand);
+  targets
+    .command("disable <ide>")
+    .description("Turn an editor off: sync, diff and auto-sync skip it")
+    .action(targetsDisableCommand);
+
   program
     .command("sync")
     .description("Sync config to IDE targets")
@@ -105,9 +119,15 @@ export function createCLI(): Command {
     .description("Start web dashboard")
     .option("--port <port>", "Port number", "3847")
     .option("--host <host>", "Address to listen on (default 127.0.0.1, this machine only)")
+    .option("--no-watch", "Don't watch mcp-hub.json and .env")
+    .option("--auto-sync", "Sync editors as soon as mcp-hub.json or .env changes (default: report, don't write)")
     .action(async (opts) => {
       // A busy port is already explained by serveCommand; don't add a stack trace
-      await serveCommand({ port: parseInt(opts.port), host: opts.host }).catch(() => {});
+      await serveCommand({
+        port: parseInt(opts.port),
+        host: opts.host,
+        watch: !opts.watch ? undefined : opts.autoSync ? "auto" : "review",
+      }).catch(() => {});
     });
 
   program

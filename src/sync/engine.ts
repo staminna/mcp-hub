@@ -4,7 +4,7 @@ import {
   type TargetName,
   type SyncResult,
 } from "../types.js";
-import { getAdapter, getTargetNames } from "../targets/registry.js";
+import { getAdapter, getEnabledTargetNames, isTargetEnabled } from "../targets/registry.js";
 import { sameServer } from "../targets/base.js";
 import { createBackup } from "./backup.js";
 import { computeDiff } from "./diff.js";
@@ -75,6 +75,11 @@ export async function syncTarget(
 
   if (dryRun) return result;
 
+  if (!isTargetEnabled(config, targetName)) {
+    result.error = `${targetName} is turned off — enable it first`;
+    return result;
+  }
+
   // Safety net: never write to an IDE config from an empty hub. An empty list
   // almost always means the hub config wasn't found, not an intentional state.
   if (config.servers.length === 0) {
@@ -112,7 +117,7 @@ export async function syncAll(
   config: HubConfig,
   dryRun = false
 ): Promise<SyncResult[]> {
-  const targets = getTargetNames();
+  const targets = getEnabledTargetNames(config);
   const results: SyncResult[] = [];
 
   for (const target of targets) {

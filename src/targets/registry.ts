@@ -1,7 +1,8 @@
-import { type TargetName } from "../types.js";
+import { type HubConfig, type TargetName } from "../types.js";
 import { TargetAdapter } from "./base.js";
 import { ClaudeCodeAdapter } from "./claude-code.js";
 import { ClaudeMcpAdapter } from "./claude-mcp.js";
+import { ClaudeDesktopAdapter } from "./claude-desktop.js";
 import { ClaudeSettingsAdapter } from "./claude-settings.js";
 import { VscodeAdapter } from "./vscode.js";
 import { WindsurfAdapter } from "./windsurf.js";
@@ -13,6 +14,7 @@ import { UnityAdapter } from "./unity.js";
 const adapters: Record<TargetName, () => TargetAdapter> = {
   "claude-code": () => new ClaudeCodeAdapter(),
   "claude-mcp": () => new ClaudeMcpAdapter(),
+  "claude-desktop": () => new ClaudeDesktopAdapter(),
   "claude-settings": () => new ClaudeSettingsAdapter(),
   vscode: () => new VscodeAdapter(),
   windsurf: () => new WindsurfAdapter(),
@@ -46,4 +48,13 @@ export function checkTargetName(name: string | undefined): name is TargetName | 
 
 export function getTargetNames(): TargetName[] {
   return Object.keys(adapters) as TargetName[];
+}
+
+/** An editor is on unless it's listed in settings.disabledTargets. */
+export function isTargetEnabled(config: HubConfig, target: TargetName): boolean {
+  return !(config.settings.disabledTargets ?? []).includes(target);
+}
+
+export function getEnabledTargetNames(config: HubConfig): TargetName[] {
+  return getTargetNames().filter((t) => isTargetEnabled(config, t));
 }

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { join } from "path";
 import { loadEnvFile, saveEnvFile } from "../src/secrets/env-file.js";
-import { resolveServer, detectSecrets, extractSecrets } from "../src/secrets/manager.js";
+import { resolveServer, detectSecrets, extractSecrets, listSecretVars } from "../src/secrets/manager.js";
 import { HUB_ENV_PATH } from "../src/config/defaults.js";
 import { server, config, write, read, remove, hubDir } from "./helpers.js";
 
@@ -103,5 +103,12 @@ describe("extractSecrets", () => {
     expect(out.servers[0].env).toEqual({ DB_PASSWORD: "${MY_DB_DB_PASSWORD}", MODE: "dev" });
     expect(out.servers[1].env).toEqual({ MODE: "x" });
     expect(out.servers[2].env).toBeUndefined();
+  });
+});
+
+describe("listSecretVars", () => {
+  it("handles servers with no env or args", () => {
+    const vars = listSecretVars(config([server({ id: "bare", env: undefined, args: undefined }), server({ id: "u", args: ["${TOK}"] })]), {});
+    expect(vars).toEqual([expect.objectContaining({ name: "TOK", usedBy: ["u"] })]);
   });
 });

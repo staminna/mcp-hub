@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { writeFile, rm, mkdir } from "fs/promises";
 import { existsSync } from "fs";
 import { join } from "path";
-import { loadConfig, saveConfig, findServer, addServer, removeServer, slugify } from "../src/config/store.js";
+import { loadConfig, saveConfig, findServer, addServer, removeServer, slugify, setTargetEnabled } from "../src/config/store.js";
 import { type HubConfig, type McpServer } from "../src/types.js";
 
 const TEST_DIR = join(import.meta.dirname, ".tmp-test");
@@ -101,5 +101,16 @@ describe("slugify", () => {
     expect(slugify("My Server Name")).toBe("my-server-name");
     expect(slugify("foo--bar")).toBe("foo-bar");
     expect(slugify("---hello---")).toBe("hello");
+  });
+});
+
+describe("setTargetEnabled", () => {
+  it("works on settings that have no disabledTargets yet, and never lists an editor twice", () => {
+    const c = { version: 1, servers: [], settings: { backupDir: "b", autoBackup: false, defaultTargets: [] } } as HubConfig;
+    const off = setTargetEnabled(c, "cursor", false);
+    expect(off.settings.disabledTargets).toEqual(["cursor"]);
+    expect(setTargetEnabled(off, "cursor", false).settings.disabledTargets).toEqual(["cursor"]);
+    expect(setTargetEnabled(off, "cursor", true).settings.disabledTargets).toEqual([]);
+    expect(c.settings.disabledTargets).toBeUndefined(); // input untouched
   });
 });

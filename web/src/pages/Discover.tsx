@@ -27,10 +27,10 @@ export function Discover() {
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState("mcp-server");
 
-  const load = async (t: Tab, q?: string) => {
+  const load = async (t: Tab) => {
     setLoading(true);
     try {
-      const r = t === "registry" ? await api.discoverRegistry() : t === "running" ? await api.discoverRunning() : await api.discoverNpm(q ?? query);
+      const r = t === "registry" ? await api.discoverRegistry() : t === "running" ? await api.discoverRunning() : await api.discoverNpm(query.trim());
       setResults((x) => ({ ...x, [t]: r }));
     } catch (err) {
       toast.error("Search failed", (err as Error).message);
@@ -44,7 +44,7 @@ export function Discover() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
-  const search = (e: FormEvent) => { e.preventDefault(); if (query.trim()) load("npm", query.trim()); };
+  const search = (e: FormEvent) => { e.preventDefault(); if (query.trim()) load("npm"); };
   const list = results[tab];
 
   return (

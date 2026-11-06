@@ -3,7 +3,7 @@ import { type TargetName } from "../../types.js";
 import { loadConfig } from "../../config/store.js";
 import { computeDiff, changedFields } from "../../sync/diff.js";
 import { getServersForTarget } from "../../sync/engine.js";
-import { getTargetNames, checkTargetName } from "../../targets/registry.js";
+import { getEnabledTargetNames, checkTargetName } from "../../targets/registry.js";
 import { sameServer } from "../../targets/base.js";
 
 export async function diffCommand(options: {
@@ -14,7 +14,7 @@ export async function diffCommand(options: {
 
   const targets = options.target
     ? [options.target as TargetName]
-    : getTargetNames();
+    : getEnabledTargetNames(config);
 
   for (const target of targets) {
     const { servers, skipped } = await getServersForTarget(config, target);

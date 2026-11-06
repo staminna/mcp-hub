@@ -18,7 +18,7 @@ router.get("/", route(async (_req, res) => {
 // PUT /api/secrets/:name  { value }
 router.put("/:name", route(async (req, res) => {
   const { name } = req.params;
-  const value = (req.body ?? {}).value;
+  const value = req.body.value; // express.json() always sets an object
   if (!VAR_NAME.test(name)) {
     return res.status(400).json({ error: "Use letters, digits and _ only, not starting with a digit" });
   }

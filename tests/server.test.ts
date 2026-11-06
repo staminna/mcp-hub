@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vites
 import { type Server } from "http";
 import { join } from "path";
 import { createServer } from "../src/server/index.js";
+import { localOnly } from "../src/server/guard.js";
 import { HUB_CONFIG_PATH, HUB_ENV_PATH } from "../src/config/defaults.js";
 import { saveConfig, loadConfig } from "../src/config/store.js";
 import { getAdapter } from "../src/targets/registry.js";
@@ -57,6 +58,14 @@ describe("servers API", () => {
     expect((await api("POST", "/api/servers", {})).status).toBe(400);
   });
 
+  it("moves a pasted token out of mcp-hub.json into .env on create", async () => {
+    const token = "ghp_abcdefghijklmnopqrstuvwxyz123456";
+    const r = await api("POST", "/api/servers", { name: "gh", command: "npx", env: { GITHUB_TOKEN: token, MODE: "fast" } });
+    expect(r.json.env).toEqual({ GITHUB_TOKEN: "${GH_GITHUB_TOKEN}", MODE: "fast" });
+    expect(read(HUB_CONFIG_PATH)).not.toContain(token);
+    expect(read(HUB_ENV_PATH)).toContain(`GH_GITHUB_TOKEN=${token}`);
+  });
+
   it("replaces a server on PUT, so cleared fields are removed", async () => {
     await api("PUT", "/api/servers/alpha", { name: "Alpha", command: "node", cwd: "/somewhere" });
     const r = await api("PUT", "/api/servers/alpha", { name: "Alpha 2", command: "node", id: "ignored" });
@@ -86,7 +95,7 @@ describe("servers API", () => {
     const r = await api("GET", "/api/servers");
     expect(r.status).toBe(500);
     expect(r.json.error).toMatch(/JSON/);
-    expect((await api("GET", "/api/targets")).status).toBe(200); // server still up
+    expect((await api("GET", "/api/skills")).status).toBe(200); // server still up
   });
 });
 
@@ -94,9 +103,23 @@ describe("targets and sync API", () => {
   it("lists targets with ~ paths and whether they exist", async () => {
     write(getAdapter("cursor").configPath, { mcpServers: {} });
     const ts = (await api("GET", "/api/targets")).json;
-    expect(ts).toHaveLength(9);
+    expect(ts).toHaveLength(10);
     expect(ts.find((t: any) => t.name === "cursor")).toMatchObject({ label: "Cursor", icon: "⌨️", path: "~/.cursor/mcp.json", exists: true });
     expect(ts.find((t: any) => t.name === "vscode").exists).toBe(false);
+  });
+
+  it("turns an editor off and on, and off editors are skipped by sync and diff", async () => {
+    expect((await api("GET", "/api/targets")).json.every((t: any) => t.enabled)).toBe(true);
+    expect((await api("PUT", "/api/targets/cursor", { enabled: false })).json).toEqual({ name: "cursor", enabled: false });
+    expect((await loadConfig()).settings.disabledTargets).toEqual(["cursor"]);
+    expect((await api("GET", "/api/targets")).json.find((t: any) => t.name === "cursor").enabled).toBe(false);
+    expect((await api("POST", "/api/sync/all")).json.map((r: any) => r.target)).not.toContain("cursor");
+    expect((await api("GET", "/api/sync/diff")).json.targets.map((t: any) => t.name)).not.toContain("cursor");
+    expect((await api("POST", "/api/targets/cursor/sync")).json.error).toMatch(/turned off/);
+    await api("PUT", "/api/targets/cursor", { enabled: true });
+    expect((await loadConfig()).settings.disabledTargets).toEqual([]);
+    expect((await api("PUT", "/api/targets/nope", { enabled: false })).status).toBe(400);
+    expect((await api("PUT", "/api/targets/cursor", { enabled: "no" })).status).toBe(400);
   });
 
   it("syncs one target, keeping unmanaged servers", async () => {
@@ -109,7 +132,7 @@ describe("targets and sync API", () => {
 
   it("syncs every target", async () => {
     const r = await api("POST", "/api/sync/all");
-    expect(r.json).toHaveLength(9);
+    expect(r.json).toHaveLength(10);
   });
 
   it("diffs every target with ids and field names, never values", async () => {
@@ -239,6 +262,20 @@ describe("localhost-only guard", () => {
     expect(await raw("/api/servers/alpha/toggle", "POST", { Host: "127.0.0.1" })).toBe(200);
     // Reading from another origin's page is still blocked by the browser (no CORS headers); GETs aren't Origin-checked
     expect(await raw("/api/servers", "GET", { Host: "127.0.0.1", Origin: "https://evil.example" })).toBe(200);
+  });
+
+  it("rejects a missing or malformed Host header", () => {
+    const run = (headers: Record<string, string>) => {
+      let status = 0;
+      let error = "";
+      const res = { status: (c: number) => ((status = c), res), json: (b: { error: string }) => ((error = b.error), res) };
+      const next = vi.fn();
+      localOnly()({ headers, method: "GET" } as any, res as any, next);
+      return { status, error, next };
+    };
+    expect(run({})).toMatchObject({ status: 403, error: 'Host "" isn\'t allowed; open the dashboard via localhost' });
+    expect(run({ host: "LOCALHOST:x:y" })).toMatchObject({ status: 403, error: expect.stringContaining('"localhost:x:y"') });
+    expect(run({ host: "localhost" }).next).toHaveBeenCalled();
   });
 
   it("accepts an extra host chosen with --host", async () => {

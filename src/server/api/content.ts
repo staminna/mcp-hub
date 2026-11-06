@@ -26,7 +26,7 @@ function contentRouter(list: () => Promise<unknown[]>): Router {
   }));
 
   router.put("/file", route(async (req, res) => {
-    const { path, content } = req.body ?? {};
+    const { path, content } = req.body; // express.json() always sets an object
     if (typeof path !== "string" || typeof content !== "string") {
       return res.status(400).json({ error: "path and content required" });
     }

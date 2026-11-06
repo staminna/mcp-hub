@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { screen, within } from "@testing-library/react";
+import { screen, within, waitFor } from "@testing-library/react";
 import { Targets } from "./Targets.tsx";
 import { installFakeApi } from "../test/fakeApi.ts";
 import { renderWithToasts } from "../test/render.tsx";
@@ -12,6 +12,37 @@ describe("Targets (Editors)", () => {
     renderWithToasts(<Targets />);
     expect(await screen.findByText("~/.cursor/mcp.json (not found yet; sync will create it)")).toBeTruthy();
     expect(screen.getByText("~/.claude.json")).toBeTruthy();
+  });
+
+  it("turns an editor off: dims it and disables its Sync button", async () => {
+    const st = installFakeApi();
+    const { user } = renderWithToasts(<Targets />);
+    await screen.findByText("Cursor");
+    await user.click(screen.getByLabelText("Sync to Cursor"));
+    expect(await within(row("Cursor")).findByText("Off: skipped by Sync all and auto-sync")).toBeTruthy();
+    expect(row("Cursor").className).toBe("target off");
+    expect((within(row("Cursor")).getByText("Sync") as HTMLButtonElement).disabled).toBe(true);
+    expect(st.calls).toContainEqual({ method: "PUT", path: "/api/targets/cursor", body: { enabled: false } });
+    expect(screen.getByLabelText("Sync to Cursor").getAttribute("aria-checked")).toBe("false");
+    await user.click(screen.getByLabelText("Sync to Cursor"));
+    await waitFor(() => expect(row("Cursor").className).toBe("target"));
+  });
+
+  it("reports a failed toggle", async () => {
+    installFakeApi({ fail: { "PUT /api/targets/cursor": { status: 500, body: "down" } } });
+    const { user } = renderWithToasts(<Targets />);
+    await screen.findByText("Cursor");
+    await user.click(screen.getByLabelText("Sync to Cursor"));
+    expect(await screen.findByText("Couldn't turn cursor off")).toBeTruthy();
+  });
+
+  it("reports a failed attempt to turn an editor back on", async () => {
+    const st = installFakeApi({ fail: { "PUT /api/targets/cursor": { status: 500, body: "down" } } });
+    st.targets[1] = { ...st.targets[1], enabled: false };
+    const { user } = renderWithToasts(<Targets />);
+    await screen.findByText("Cursor");
+    await user.click(screen.getByLabelText("Sync to Cursor"));
+    expect(await screen.findByText("Couldn't turn cursor on")).toBeTruthy();
   });
 
   it("syncs one editor after confirming and shows the result", async () => {

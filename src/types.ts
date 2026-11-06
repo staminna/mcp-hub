@@ -3,6 +3,7 @@ export type TransportType = "stdio" | "sse" | "streamable-http";
 export type TargetName =
   | "claude-code"
   | "claude-mcp"
+  | "claude-desktop"
   | "claude-settings"
   | "vscode"
   | "windsurf"
@@ -37,6 +38,8 @@ export interface HubSettings {
   backupDir: string;
   autoBackup: boolean;
   defaultTargets: TargetName[];
+  /** Editors switched off: sync, diff and auto-sync skip them. */
+  disabledTargets?: TargetName[];
 }
 
 export interface TargetConfig {

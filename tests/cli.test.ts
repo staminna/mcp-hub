@@ -160,6 +160,22 @@ describe("sync and diff", () => {
     expect(out).toMatch(/windsurf: no changes/);
     expect(await cli("sync", "--target", "nope")).toMatch(/Unknown editor/);
   });
+
+  it("targets disable/enable turns an editor off for sync and diff", async () => {
+    expect(await cli("targets")).toMatch(/● cursor\s+~\/\.cursor\/mcp\.json \(not found\)/);
+    write(cursor.configPath, { mcpServers: {} });
+    expect(await cli("targets")).toMatch(/● cursor\s+~\/\.cursor\/mcp\.json\n/);
+    remove(join(home(), ".cursor"));
+    expect(await cli("targets", "disable", "cursor")).toMatch(/cursor off/);
+    expect((await loadConfig()).settings.disabledTargets).toEqual(["cursor"]);
+    expect(await cli("targets")).toMatch(/○ cursor/);
+    expect(await cli("sync")).not.toMatch(/cursor/);
+    expect(await cli("diff")).not.toMatch(/cursor/);
+    expect(() => read(cursor.configPath)).toThrow();
+    expect(await cli("targets", "enable", "cursor")).toMatch(/cursor on/);
+    expect((await loadConfig()).settings.disabledTargets).toEqual([]);
+    expect(await cli("targets", "disable", "nope")).toMatch(/Unknown editor/);
+  });
 });
 
 describe("import", () => {
@@ -167,17 +183,21 @@ describe("import", () => {
     // Windsurf is read before Cursor
     write(getAdapter("windsurf").configPath, { mcpServers: {
       alpha: { command: "dup" },
+      beta: { command: "everywhere" },
       "New One": { command: "n", env: { API_TOKEN: "tok_1234567890" } },
     } });
     write(cursor.configPath, { mcpServers: { "new-one": { command: "twice" } } });
     const out = await cli("import");
-    expect(out).toMatch(/skip alpha \(already exists\)/);
+    expect(out).toMatch(/~ alpha \(already in the hub; now also synced here\)/);
     expect(out).toMatch(/\+ New One/);
-    expect(out).toMatch(/skip new-one \(already exists\)/); // same slug from the second editor
+    expect(out).toMatch(/~ new-one \(already in the hub; now also synced here\)/); // same slug from the second editor
+    expect(out).toMatch(/2 linked to more editors/);
+    expect(out).toMatch(/skip beta \(already exists\)/); // already synced everywhere ("*")
+    expect((await loadConfig()).servers.find((x) => x.id === "alpha")!.targets).toContain("windsurf");
     expect(out).toMatch(/moved 1 secret\(s\) to .env: NEW_ONE_API_TOKEN/);
     expect(out).toMatch(/skip VS Code \(not found\)/);
     const s = (await loadConfig()).servers.find((x) => x.id === "new-one")!;
-    expect(s).toMatchObject({ name: "New One", env: { API_TOKEN: "${NEW_ONE_API_TOKEN}" }, targets: ["windsurf"] });
+    expect(s).toMatchObject({ name: "New One", env: { API_TOKEN: "${NEW_ONE_API_TOKEN}" }, targets: ["windsurf", "cursor"] });
     expect(read(HUB_ENV_PATH)).toMatch(/NEW_ONE_API_TOKEN=tok_1234567890/);
   });
 
@@ -194,6 +214,27 @@ describe("import", () => {
     write(cursor.configPath, { mcpServers: { empty: {} } });
     await cli("import", "--from", "cursor");
     expect((await loadConfig()).servers.find((x) => x.id === "empty")!.transport).toBe("stdio");
+  });
+
+  it("names Claude Code's project-scoped servers instead of silently skipping them", async () => {
+    const claude = getAdapter("claude-code").configPath;
+    write(claude, {
+      mcpServers: {},
+      projects: {
+        "/work/hubmcp": { mcpServers: { arkestra: { type: "http", url: "http://localhost:9315/mcp" }, alpha: { command: "x" } } },
+        "/work/empty": {},
+        "/work/null": null,
+      },
+    });
+    const out = await cli("import", "--from", "claude-code");
+    expect(out).toMatch(/1 project-scoped Claude Code server\(s\) not imported: arkestra \(hubmcp\)/); // alpha is already in the hub
+    expect((await loadConfig()).servers.some((x) => x.id === "arkestra")).toBe(false);
+    // Nothing to say when there are none, or the file can't be read
+    write(claude, { mcpServers: {} });
+    expect(await cli("import", "--from", "claude-code")).not.toMatch(/project-scoped/);
+    write(claude, "{ broken");
+    expect(await cli("import", "--from", "claude-code")).not.toMatch(/project-scoped/);
+    expect(await cli("import", "--from", "cursor")).not.toMatch(/project-scoped/);
   });
 
   it("reports non-Error failures", async () => {
@@ -242,7 +283,11 @@ describe("discover", () => {
 describe("serve and deploy", () => {
   it("passes the port to serve", async () => {
     await cli("serve", "--port", "4000");
-    expect(mocks.serve).toHaveBeenCalledWith({ port: 4000 });
+    expect(mocks.serve).toHaveBeenCalledWith({ port: 4000, watch: "review" });
+    await cli("serve", "--auto-sync");
+    expect(mocks.serve).toHaveBeenLastCalledWith({ port: 3847, watch: "auto" });
+    await cli("serve", "--no-watch", "--auto-sync");
+    expect(mocks.serve).toHaveBeenLastCalledWith({ port: 3847, watch: undefined });
     mocks.serve.mockRejectedValueOnce(new Error("busy"));
     await expect(cli("serve")).resolves.toBe("\n".repeat(0));
   });

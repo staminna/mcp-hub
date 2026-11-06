@@ -15,7 +15,7 @@ describe("App", () => {
   it("routes to every page and highlights the nav", async () => {
     installFakeApi();
     renderWithToasts(<App />);
-    expect(await screen.findByText("3 in the hub, 2 enabled. Each dot is an editor the server is synced to.")).toBeTruthy();
+    expect(await screen.findByText("3 in the hub, 2 enabled. Filled dot: synced to that editor. Ring: the editor has it, but the hub doesn't sync it there.")).toBeTruthy();
     expect(screen.getByText("Servers", { selector: "a" }).getAttribute("aria-current")).toBe("page");
 
     const pages: [string, string][] = [

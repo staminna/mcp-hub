@@ -10,7 +10,7 @@ const JSON_TARGETS: TargetName[] = [
 
 describe("registry", () => {
   it("knows every target", () => {
-    expect(getTargetNames()).toHaveLength(9);
+    expect(getTargetNames()).toHaveLength(10);
     expect(getAllAdapters().map((a) => a.name)).toEqual(getTargetNames());
   });
   it("rejects unknown targets", () => {

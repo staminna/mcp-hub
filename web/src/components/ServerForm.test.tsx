@@ -6,8 +6,8 @@ import type { TargetInfo } from "../api.ts";
 import "../test/render.tsx";
 
 const targets: TargetInfo[] = [
-  { name: "claude-code", label: "Claude Code", icon: "", path: "", exists: true },
-  { name: "cursor", label: "Cursor", icon: "", path: "", exists: true },
+  { name: "claude-code", label: "Claude Code", icon: "", path: "", exists: true, enabled: true, present: [] },
+  { name: "cursor", label: "Cursor", icon: "", path: "", exists: true, enabled: true, present: [] },
 ];
 
 function setup(initial?: Parameters<typeof ServerForm>[0]["initial"]) {
